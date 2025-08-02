@@ -4,7 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Reservas Temporarias</title>
+<!-- 1. Cargar la nueva librería de Google Identity Services (GIS) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- 2. Cargar la librería de la API de Google (para Drive) -->
 <script src="https://apis.google.com/js/api.js" async defer></script>
 
 <style>
@@ -58,6 +60,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 
   <button class="action-btn" onclick="openModal()">Añadir reserva</button>
 
+  <!-- Google Drive authentication buttons -->
   <button id="authBtn" class="action-btn secondary">Iniciar sesión Google</button>
   <button id="signoutBtn" class="action-btn secondary hidden">Cerrar sesión</button>
 </header>
@@ -77,6 +80,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
   <button class="action-btn" onclick="exportData()">Exportar CSV</button>
 </footer>
 
+<!-- Modal -->
 <div id="modalOverlay" class="modal-overlay hidden">
   <div class="modal-content">
     <h2 id="modalTitle">Nueva reserva</h2>
@@ -109,13 +113,12 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 </div>
 
 <script>
-/* ======  JS (COMPLETAMENTE REESCRITO) ====== */
+/* ======  JS ====== */
 
 // --- CONFIGURACIÓN ---
-// USA LAS CREDENCIALES DE TU PROYECTO MÁS NUEVO
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
-const FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP'; // Este no cambia
+const FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
 let tokenClient;
@@ -125,7 +128,7 @@ let gisInited = false;
 const authBtn = document.getElementById('authBtn');
 const signoutBtn = document.getElementById('signoutBtn');
 
-// --- LÓGICA DE LA APLICACIÓN (Sin cambios) ---
+// --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
 let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
 let y = new Date().getFullYear(), m = new Date().getMonth();
@@ -178,19 +181,66 @@ function switchCalendar(p){props.forEach(pr=>{
    .classList.toggle('active',pr===p);
 });}
 function changeMonth(delta){m+=delta;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}renderAll();}
-function refreshList(){
- const list=document.getElementById('checkList');list.innerHTML='';
- const today=new Date();today.setHours(0,0,0,0);const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
- [{lbl:'Hoy',d:today},{lbl:'Mañana',d:tomorrow}].forEach(({lbl,d})=>{
-  const ds=d.toISOString().split('T')[0];const sec=document.createElement('div');
-  sec.innerHTML=`<strong>${lbl} (${ds})</strong><br>`;
-  const inArr=reservas.filter(r=>r.checkIn===ds),outArr=reservas.filter(r=>r.checkOut===ds);
-  if(!inArr.length&&!outArr.length){sec.append('Sin movimientos');}
-  if(inArr.length){sec.innerHTML+='<span class="badge badge-success">Check-in</span> '+inArr.map(r=>r.guestName).join(', ')+'<br>';}
-  if(outArr.length){sec.innerHTML+='<span class="badge badge-danger">Check-out</span> '+outArr.map(r=>r.guestName).join(', ');}
-  list.appendChild(sec);
- });
+
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA CORREGIR LA LÓGICA ============
+// =================================================================
+function refreshList() {
+    const list = document.getElementById('checkList');
+    list.innerHTML = '';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // --- Sección "Hoy" ---
+    const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
+    const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
+
+    const todaySection = document.createElement('div');
+    todaySection.innerHTML = `<strong>Hoy (${todayStr})</strong><br>`;
+    if (checkInsToday.length === 0 && checkOutsToday.length === 0) {
+        todaySection.innerHTML += 'Sin movimientos';
+    } else {
+        if (checkInsToday.length > 0) {
+            todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
+        }
+        if (checkOutsToday.length > 0) {
+            todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
+        }
+    }
+    list.appendChild(todaySection);
+
+    // --- Sección "Mañana" ---
+    const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
+    const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
+
+    const tomorrowSection = document.createElement('div');
+    tomorrowSection.innerHTML = `<br><strong>Mañana (${tomorrowStr})</strong><br>`;
+    if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) {
+        tomorrowSection.innerHTML += 'Sin movimientos';
+    } else {
+        if (checkInsTomorrow.length > 0) {
+            tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
+        }
+        if (checkOutsTomorrow.length > 0) {
+            tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
+        }
+    }
+    list.appendChild(tomorrowSection);
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
+// =================================================================
 
 function openModal(pref){document.getElementById('modalOverlay').classList.remove('hidden');
  document.getElementById('reservationForm').reset();document.getElementById('reservationId').value='';
@@ -219,25 +269,22 @@ function exportData(){
  const a=document.createElement('a');a.href=url;a.download='reservas.csv';a.click();URL.revokeObjectURL(url);
 }
 
-// --- NUEVA LÓGICA DE AUTENTICACIÓN Y DATOS DE GOOGLE ---
+// --- LÓGICA DE AUTENTICACIÓN Y DATOS DE GOOGLE ---
 
-// Se llama cuando la librería de la API de Google (gapi) ha cargado.
 function gapiLoaded() {
     gapi.load('client', initializeGapiClient);
 }
 
-// Se llama cuando la librería de Google Identity (gis) ha cargado.
 function gisLoaded() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // Se define un callback vacío, lo manejaremos con una promesa
+        callback: '', 
     });
     gisInited = true;
     maybeEnableAuthButtons();
 }
 
-// Se llama después de que 'gapi' ha cargado el 'client'.
 async function initializeGapiClient() {
     await gapi.client.init({
         apiKey: API_KEY,
@@ -247,7 +294,6 @@ async function initializeGapiClient() {
     maybeEnableAuthButtons();
 }
 
-// Habilita los botones de login/logout una vez que ambas librerías están listas.
 function maybeEnableAuthButtons() {
     if (gapiInited && gisInited) {
         authBtn.onclick = handleAuthClick;
@@ -255,7 +301,6 @@ function maybeEnableAuthButtons() {
     }
 }
 
-// Maneja el clic en el botón de "Iniciar Sesión".
 function handleAuthClick() {
     tokenClient.callback = async (resp) => {
         if (resp.error !== undefined) {
@@ -272,7 +317,6 @@ function handleAuthClick() {
     }
 }
 
-// Maneja el clic en el botón de "Cerrar Sesión".
 function handleSignoutClick() {
     const token = gapi.client.getToken();
     if (token !== null) {
@@ -282,7 +326,6 @@ function handleSignoutClick() {
     }
 }
 
-// Actualiza la UI (botones) según el estado de la sesión.
 function updateSigninStatus(isSignedIn) {
     if (isSignedIn) {
         authBtn.classList.add('hidden');
@@ -290,13 +333,11 @@ function updateSigninStatus(isSignedIn) {
     } else {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
-        // Limpia las reservas si el usuario cierra sesión para no mostrar datos de otros.
         reservas = []; 
         renderAll();
     }
 }
 
-// Carga los datos del archivo en Google Drive.
 async function loadReservaData() {
     try {
         const response = await gapi.client.drive.files.get({
@@ -305,7 +346,7 @@ async function loadReservaData() {
         });
         const data = JSON.parse(response.body);
         reservas = Array.isArray(data) ? data : [];
-        localStorage.setItem('reservas', JSON.stringify(reservas)); // Guardar en local
+        localStorage.setItem('reservas', JSON.stringify(reservas));
         renderAll();
     } catch (err) {
         console.error("Error al cargar datos de Drive: ", err);
@@ -313,9 +354,7 @@ async function loadReservaData() {
     }
 }
 
-// Guarda los datos en Google Drive.
 async function saveReservaData() {
-    // Solo guardar si hay un token de acceso válido
     if (gapi.client.getToken()) {
         const content = JSON.stringify(reservas, null, 2);
         try {
@@ -332,13 +371,11 @@ async function saveReservaData() {
     }
 }
 
-// Función `save` modificada para ser asíncrona.
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
     await saveReservaData();
 }
 
-// Función `handleSave` modificada para llamar a `save` asíncrona.
 async function handleSave() {
  const id=document.getElementById('reservationId').value||'res-'+Math.random().toString(36).slice(2);
  const r={id,
@@ -360,7 +397,6 @@ async function handleSave() {
 
 
 // --- INICIALIZACIÓN ---
-// Exponer funciones al scope global para que los `onclick` del HTML las encuentren.
 window.switchCalendar=switchCalendar;
 window.openModal=openModal;
 window.closeModal=closeModal;
@@ -369,27 +405,17 @@ window.handleDelete=handleDelete;
 window.changeMonth=changeMonth;
 window.exportData = exportData;
 
-// Iniciar la carga de las librerías de Google.
-// `gapiLoaded` y `gisLoaded` son los 'callbacks' que se ejecutarán cuando cada script termine de cargar.
-window.onload = () => {
-    // Estas funciones son llamadas por los scripts de Google una vez que cargan.
-    // Necesitamos definirlas aquí, pero serán ejecutadas por los scripts externos.
-};
-// El script de GAPI buscará y llamará esta función global.
 function gapiLoadedWrapper() {
     gapiLoaded();
 }
-// El script de GIS buscará y llamará esta función global.
 function gisLoadedWrapper() {
     gisLoaded();
 }
 
-// Carga inicial de datos desde localStorage y renderizado.
 monthLabel();
 renderAll();
 switchCalendar('beltran4');
 
-// Adjuntar los callbacks a los scripts de Google
 const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
 gapiScript.onload = gapiLoadedWrapper;
 

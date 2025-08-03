@@ -1,12 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Reservas Temporarias</title>
-<!-- 1. Cargar la nueva librería de Google Identity Services (GIS) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- 2. Cargar la librería de la API de Google (para Drive) -->
 <script src="https://apis.google.com/js/api.js" async defer></script>
 
 <style>
@@ -26,9 +25,7 @@ main{padding:10px}
 .badge-success{background:#81c784}.badge-danger{background:#e57373;color:#fff}
 .calendar{overflow-x:auto;margin-top:15px}
 table{border-collapse:collapse;width:100%;table-layout:fixed}
-/* === CSS MODIFICADO === */
-th,td{border:1px solid #ddd;padding:2px;vertical-align:top;font-size:.75rem;height:85px} /* Tamaño de letra aumentado */
-/* === FIN CSS MODIFICADO === */
+th,td{border:1px solid #ddd;padding:2px;vertical-align:top;font-size:.75rem;height:85px}
 th:nth-child(1){background:#f28c8c;color:#fff}
 th:nth-child(2){background:#e7b97d;color:#fff}
 th:nth-child(3){background:#cfe3a1}
@@ -45,9 +42,18 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal-content{background:#fff;padding:18px;border-radius:6px;width:90%;max-width:600px;max-height:90vh;overflow:auto}
 .modal-content h2{margin-top:0}
-.reservation-form{display:flex;flex-direction:column;gap:8px}
-.reservation-form input,.reservation-form select{padding:6px;border:1px solid #ccc;border-radius:4px;font-size:.9rem}
-.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.reservation-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.reservation-form input,.reservation-form select,.reservation-form textarea{padding:6px;border:1px solid #ccc;border-radius:4px;font-size:.9rem}
+.full-width{grid-column:1 / -1}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;grid-column:1 / -1}
+.search-container{display:flex;gap:4px;align-items:center;margin-left:16px;}
+.search-container input{padding:4px;border-radius:4px;border:1px solid #7f8c8d;}
+.financial-summary{background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px;margin-top:15px;}
+.financial-summary h3{margin-top:0;}
+.financial-summary .summary-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;}
+.financial-summary .summary-item{background-color:#f9f9f9;padding:8px;border-radius:4px;}
+.financial-summary .summary-item strong{display:block;margin-bottom:4px;color:#2c3e50;}
+.event.highlight{background-color: #6eff7e !important; border: 2px solid #1a9c32;}
 </style>
 </head>
 <body>
@@ -55,6 +61,12 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
   <button class="property-btn active" id="btnBeltran4" onclick="switchCalendar('beltran4')">Beltrán 4º</button>
   <button class="property-btn" id="btnBeltran8" onclick="switchCalendar('beltran8')">Beltrán 8º</button>
   <button class="property-btn" id="btnDirectorio8" onclick="switchCalendar('directorio8')">Directorio 8º</button>
+
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Buscar huésped...">
+    <button class="action-btn" onclick="handleSearch()">Buscar</button>
+    <button class="action-btn secondary" onclick="clearSearch()">Limpiar</button>
+  </div>
 
   <div class="month-nav">
     <button class="action-btn secondary" onclick="changeMonth(-1)">«</button>
@@ -64,7 +76,6 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 
   <button class="action-btn" onclick="openModal()">Añadir reserva</button>
 
-  <!-- Google Drive authentication buttons -->
   <button id="authBtn" class="action-btn secondary">Iniciar sesión Google</button>
   <button id="signoutBtn" class="action-btn secondary hidden">Cerrar sesión</button>
 </header>
@@ -72,6 +83,19 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 <main>
   <h3>Check-ins / Check-outs</h3>
   <div id="checkList" class="check-list"></div>
+
+  <div id="financialSummary" class="financial-summary">
+    <h3>Resumen Financiero del Mes</h3>
+    <div>
+        <label for="exchangeRate">Cotización Dólar:</label>
+        <input type="number" id="exchangeRate" value="1000" oninput="calculateFinancialSummary()">
+    </div>
+    <div class="summary-grid">
+        <div class="summary-item"><strong>Ingresos Totales (ARS):</strong> <span id="summaryTotal">0</span></div>
+        <div class="summary-item"><strong>Total Cobrado (ARS):</strong> <span id="summaryPaid">0</span></div>
+        <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
+    </div>
+  </div>
 
   <div class="calendar">
     <div id="cal-beltran4"></div>
@@ -88,12 +112,20 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
   <div class="modal-content">
     <h2 id="modalTitle">Nueva reserva</h2>
     <form id="reservationForm" class="reservation-form">
-      <select id="propertySelect" required>
+      <select id="propertySelect" required class="full-width">
         <option value="beltran4">Beltrán 4º</option>
         <option value="beltran8">Beltrán 8º</option>
         <option value="directorio8">Directorio 8º</option>
       </select>
-      <input id="guestName" placeholder="Nombre del huésped" required />
+      
+      <input id="guestName" list="clientsDatalist" placeholder="Nombre del huésped" required class="full-width" oninput="handleClientAutocomplete()">
+      <datalist id="clientsDatalist"></datalist>
+      
+      <input id="guestDni" placeholder="DNI" />
+      <input id="guestEmail" type="email" placeholder="Email" />
+      <input id="guestPhone1" placeholder="Teléfono 1" />
+      <input id="guestPhone2" placeholder="Teléfono 2" />
+      
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
       <input id="checkInDate" type="date" required />
       <input id="checkOutDate" type="date" required />
@@ -120,13 +152,16 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
         <option value="paid">Pagado</option>
         <option value="cancelled">Cancelada</option>
       </select>
+      
+      <textarea id="notes" placeholder="Notas adicionales..." class="full-width"></textarea>
+      
       <input type="hidden" id="reservationId" />
+      <div class="modal-actions">
+        <button id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
+        <button class="action-btn secondary" onclick="closeModal()">Cerrar</button>
+        <button class="action-btn" onclick="handleSave()">Guardar</button>
+      </div>
     </form>
-    <div class="modal-actions">
-      <button id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
-      <button class="action-btn secondary" onclick="closeModal()">Cerrar</button>
-      <button class="action-btn" onclick="handleSave()">Guardar</button>
-    </div>
   </div>
 </div>
 
@@ -136,8 +171,9 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 // --- CONFIGURACIÓN ---
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
-const FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
-const SCOPES = 'https://www.googleapis.com/auth/drive';
+const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
+// IMPORTANTE: Crea un archivo clientes.json vacío ([]) en Drive y pega su ID aquí
+const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 
 let tokenClient;
 let gapiInited = false;
@@ -148,7 +184,9 @@ const signoutBtn = document.getElementById('signoutBtn');
 
 // --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
-let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
+let reservas = [];
+let clientes = [];
+let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -165,9 +203,6 @@ function genGrid(Y, M) {
  return out;
 }
 
-// =================================================================
-// ========= FUNCIÓN MODIFICADA PARA MOSTRAR PLATAFORMA ============
-// =================================================================
 function render(prop) {
     const cont = document.getElementById('cal-' + prop);
     cont.innerHTML = '';
@@ -184,7 +219,7 @@ function render(prop) {
                 reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut)
                     .forEach(r => {
                         const ev = document.createElement('div');
-                        const platformInfo = r.platform || 'Otra'; // Fallback por si no existe
+                        const platformInfo = r.platform || 'Otra';
                         
                         if (r.total === 0) {
                             ev.className = 'event status-bonif';
@@ -195,11 +230,11 @@ function render(prop) {
                             ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`;
                         }
 
-                        if (r.currency === 'Dolares') {
-                            ev.classList.add('currency-dolares');
-                        }
+                        if (r.currency === 'Dolares') ev.classList.add('currency-dolares');
+                        if (highlightedIds.includes(r.id)) ev.classList.add('highlight');
                         
                         ev.onclick = e => { e.stopPropagation(); openEdit(r.id); };
+                        ev.title = r.notes || 'Sin notas adicionales'; // Tooltip con notas
                         td.appendChild(ev);
                     });
                 td.onclick = () => openModal({ property: prop, date: ds });
@@ -211,11 +246,8 @@ function render(prop) {
     tbl.appendChild(tbody);
     cont.appendChild(tbl);
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
-// =================================================================
 
-function renderAll(){props.forEach(render);refreshList();monthLabel();}
+function renderAll(){props.forEach(render);refreshList();monthLabel();calculateFinancialSummary();}
 function switchCalendar(p){props.forEach(pr=>{
  document.getElementById('cal-'+pr).classList.toggle('hidden',pr!==p);
  document.getElementById(pr==='beltran4'?'btnBeltran4':pr==='beltran8'?'btnBeltran8':'btnDirectorio8')
@@ -224,14 +256,10 @@ function switchCalendar(p){props.forEach(pr=>{
 function changeMonth(delta){m+=delta;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}renderAll();}
 
 function refreshList() {
-    const list = document.getElementById('checkList');
-    list.innerHTML = '';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
+    const list = document.getElementById('checkList'); list.innerHTML = '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
     const todayStr = today.toISOString().split('T')[0];
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -242,12 +270,8 @@ function refreshList() {
     if (checkInsToday.length === 0 && checkOutsToday.length === 0) {
         todaySection.innerHTML += 'Sin movimientos';
     } else {
-        if (checkInsToday.length > 0) {
-            todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
-        }
-        if (checkOutsToday.length > 0) {
-            todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
-        }
+        if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
+        if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
     }
     list.appendChild(todaySection);
     const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
@@ -257,12 +281,8 @@ function refreshList() {
     if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) {
         tomorrowSection.innerHTML += 'Sin movimientos';
     } else {
-        if (checkInsTomorrow.length > 0) {
-            tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
-        }
-        if (checkOutsTomorrow.length > 0) {
-            tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
-        }
+        if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
+        if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
     }
     list.appendChild(tomorrowSection);
 }
@@ -285,12 +305,11 @@ function openModal(pref) {
         checkOutDate.value = pref.date;
     }
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
+    populateClientsDatalist();
     calculateDueAmount(); 
 }
 
-function closeModal() {
-    document.getElementById('modalOverlay').classList.add('hidden');
-}
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
 
 function openEdit(id) {
     const r = reservas.find(x => x.id === id);
@@ -300,6 +319,10 @@ function openEdit(id) {
     
     propertySelect.value = r.property;
     guestName.value = r.guestName;
+    guestDni.value = r.guestDni || '';
+    guestEmail.value = r.guestEmail || '';
+    guestPhone1.value = r.guestPhone1 || '';
+    guestPhone2.value = r.guestPhone2 || '';
     numGuests.value = r.numGuests;
     checkInDate.value = r.checkIn;
     checkOutDate.value = r.checkOut;
@@ -308,6 +331,7 @@ function openEdit(id) {
     totalAmount.value = r.total;
     paidAmount.value = r.paid;
     statusSelect.value = r.status;
+    notes.value = r.notes || '';
     reservationId.value = r.id;
     
     document.getElementById('deleteBtn').classList.remove('hidden');
@@ -325,23 +349,78 @@ function handleDelete() {
 }
 
 function exportData() {
-    if (!reservas.length) {
-        alert('No hay datos');
-        return;
-    }
-    const csv = ['ID,Propiedad,Nombre,Pers,Ingreso,Egreso,Plataforma,Moneda,Total,Pago,IngresoPend,Estado'];
+    if (!reservas.length) { alert('No hay datos'); return; }
+    const csv = ['ID,Propiedad,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total,Pago,IngresoPend,Estado,Notas'];
     reservas.forEach(r => csv.push([
-        r.id, r.property, r.guestName, r.numGuests, r.checkIn, r.checkOut,
-        r.platform || 'Otra', r.currency || 'Pesos Argentinos',
-        r.total, r.paid, r.due, r.status
+        r.id, r.property, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '',
+        r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos',
+        r.total, r.paid, r.due, r.status, `"${(r.notes || '').replace(/"/g, '""')}"`
     ].join(',')));
     const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'reservas.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = url; a.download = 'reservas.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+// --- NUEVAS FUNCIONES ---
+
+function handleClientAutocomplete() {
+    const name = document.getElementById('guestName').value;
+    const client = clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (client) {
+        document.getElementById('guestDni').value = client.dni || '';
+        document.getElementById('guestEmail').value = client.email || '';
+        document.getElementById('guestPhone1').value = client.phone1 || '';
+        document.getElementById('guestPhone2').value = client.phone2 || '';
+    }
+}
+
+function populateClientsDatalist() {
+    const datalist = document.getElementById('clientsDatalist');
+    datalist.innerHTML = '';
+    const uniqueNames = [...new Set(clientes.map(c => c.name))];
+    uniqueNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        datalist.appendChild(option);
+    });
+}
+
+function calculateFinancialSummary() {
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const firstDayOfMonth = new Date(y, m, 1);
+    const lastDayOfMonth = new Date(y, m + 1, 0);
+
+    let total = 0, paid = 0, due = 0;
+
+    reservas.filter(r => {
+        const checkIn = new Date(r.checkIn + 'T00:00:00');
+        return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled';
+    }).forEach(r => {
+        const rate = r.currency === 'Dolares' ? exchangeRate : 1;
+        total += r.total * rate;
+        paid += r.paid * rate;
+        due += r.due * rate;
+    });
+
+    document.getElementById('summaryTotal').textContent = total.toFixed(2);
+    document.getElementById('summaryPaid').textContent = paid.toFixed(2);
+    document.getElementById('summaryDue').textContent = due.toFixed(2);
+}
+
+function handleSearch() {
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    if (!query) return;
+    highlightedIds = reservas
+        .filter(r => r.guestName.toLowerCase().includes(query))
+        .map(r => r.id);
+    if(highlightedIds.length === 0) alert('No se encontraron reservas para ese huésped.');
+    renderAll();
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    highlightedIds = [];
+    renderAll();
 }
 
 // --- LÓGICA DE AUTENTICACIÓN Y DATOS DE GOOGLE ---
@@ -373,7 +452,7 @@ function handleAuthClick() {
     tokenClient.callback = async (resp) => {
         if (resp.error !== undefined) { throw (resp); }
         updateSigninStatus(true);
-        await loadReservaData();
+        await Promise.all([loadReservasData(), loadClientsData()]);
     };
     if (gapi.client.getToken() === null) {
         tokenClient.requestAccessToken({ prompt: 'consent' });
@@ -397,54 +476,58 @@ function updateSigninStatus(isSignedIn) {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
         reservas = [];
+        clientes = [];
         renderAll();
     }
 }
 
-async function loadReservaData() {
+async function loadReservasData() {
     try {
-        const response = await gapi.client.drive.files.get({ fileId: FILE_ID, alt: 'media' });
+        const response = await gapi.client.drive.files.get({ fileId: RESERVAS_FILE_ID, alt: 'media' });
         let data = JSON.parse(response.body);
-        
-        if (!Array.isArray(data)) {
-            data = [];
-        }
-
-        reservas = data.map(r => {
-            if (!r.platform) {
-                r.platform = 'Otra';
-            }
-            if (!r.currency) {
-                r.currency = 'Pesos Argentinos';
-            }
-            return r;
-        });
-
+        if (!Array.isArray(data)) data = [];
+        reservas = data.map(r => ({
+            ...r,
+            platform: r.platform || 'Otra',
+            currency: r.currency || 'Pesos Argentinos'
+        }));
         localStorage.setItem('reservas', JSON.stringify(reservas));
         renderAll();
-    } catch (err) {
-        console.error("Error al cargar datos de Drive: ", err);
-        alert("No se pudo cargar el archivo de reservas.");
-    }
+    } catch (err) { console.error("Error al cargar reservas: ", err); }
 }
 
-async function saveReservaData() {
+async function loadClientsData() {
+    try {
+        const response = await gapi.client.drive.files.get({ fileId: CLIENTS_FILE_ID, alt: 'media' });
+        let data = JSON.parse(response.body);
+        if (!Array.isArray(data)) data = [];
+        clientes = data;
+        localStorage.setItem('clientes', JSON.stringify(clientes));
+        populateClientsDatalist();
+    } catch (err) { console.error("Error al cargar clientes: ", err); }
+}
+
+async function saveData(fileId, data) {
     if (gapi.client.getToken()) {
-        const content = JSON.stringify(reservas, null, 2);
+        const content = JSON.stringify(data, null, 2);
         try {
             await gapi.client.request({
-                path: '/upload/drive/v3/files/' + FILE_ID,
+                path: '/upload/drive/v3/files/' + fileId,
                 method: 'PATCH',
                 params: { uploadType: 'media' },
                 body: content,
             });
-            console.log("Reservas guardadas en Drive.");
         } catch (err) { console.error("Error al guardar en Drive: ", err); }
     }
 }
+
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
-    await saveReservaData();
+    localStorage.setItem('clientes', JSON.stringify(clientes));
+    await Promise.all([
+        saveData(RESERVAS_FILE_ID, reservas),
+        saveData(CLIENTS_FILE_ID, clientes)
+    ]);
 }
 
 async function handleSave() {
@@ -457,6 +540,10 @@ async function handleSave() {
         id: id || 'res-' + Math.random().toString(36).slice(2),
         property: propertySelect.value,
         guestName: guestName.value.trim(),
+        guestDni: guestDni.value.trim(),
+        guestEmail: guestEmail.value.trim(),
+        guestPhone1: guestPhone1.value.trim(),
+        guestPhone2: guestPhone2.value.trim(),
         numGuests: +numGuests.value,
         checkIn: checkInDate.value,
         checkOut: checkOutDate.value,
@@ -465,68 +552,69 @@ async function handleSave() {
         total: +totalAmount.value,
         paid: +paidAmount.value,
         due: +dueAmount.value,
-        status: statusSelect.value
+        status: statusSelect.value,
+        notes: notes.value.trim()
     };
 
+    // --- VALIDACIONES ---
     if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
-        alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
-        return;
+        alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    if (isNew && newReservation.checkIn < today) {
+        alert('No se puede crear una reserva con fecha de ingreso en el pasado.'); return;
     }
     if (new Date(newReservation.checkOut) < new Date(newReservation.checkIn)) {
-        alert('La fecha de egreso debe ser igual o posterior a la de ingreso.');
-        return;
+        alert('La fecha de egreso debe ser igual o posterior a la de ingreso.'); return;
     }
     if (newReservation.numGuests < 1) {
-        alert('La cantidad de personas debe ser al menos 1.');
-        return;
+        alert('La cantidad de personas debe ser al menos 1.'); return;
     }
     if (newReservation.total < 0 || newReservation.paid < 0) {
-        alert('Los montos no pueden ser negativos.');
-        return;
+        alert('Los montos no pueden ser negativos.'); return;
+    }
+    if (newReservation.paid > newReservation.total) {
+        alert('El monto pagado no puede ser mayor al monto total.'); return;
     }
     
-    if (isNew) {
-        if (newReservation.total === 0) {
-            newReservation.paid = 0;
-            newReservation.due = 0;
-            newReservation.status = 'paid';
-        }
-    } else {
-        if (newReservation.total <= 0) {
-            alert('En una modificación, el monto total no puede ser cero o negativo.');
-            return;
-        }
+    // --- LÓGICA DE NEGOCIO ---
+    if (isNew && newReservation.total === 0) {
+        newReservation.paid = 0; newReservation.due = 0; newReservation.status = 'paid';
+    } else if (!isNew && newReservation.total <= 0) {
+        alert('En una modificación, el monto total no puede ser cero o negativo.'); return;
     }
     
     if (newReservation.paid >= newReservation.total && newReservation.status !== 'cancelled') {
         newReservation.status = 'paid';
     }
 
+    // --- VALIDACIÓN DE SUPERPOSICIÓN ---
     const newStart = new Date(newReservation.checkIn + 'T00:00:00');
     const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
-    const isOverlapping = reservas.some(existing => {
-        if (existing.property !== newReservation.property || existing.id === newReservation.id || existing.status === 'cancelled') {
-            return false;
-        }
-        const existingStart = new Date(existing.checkIn + 'T00:00:00');
-        const existingEnd = new Date(existing.checkOut + 'T00:00:00');
-        return newStart <= existingEnd && existingStart <= newEnd;
-    });
-
-    if (isOverlapping) {
-        alert('Error: Las fechas se superponen con una reserva activa en este departamento.');
-        return;
+    if (reservas.some(ex => ex.property === newReservation.property && ex.id !== newReservation.id && ex.status !== 'cancelled' && newStart <= new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') <= newEnd)) {
+        alert('Error: Las fechas se superponen con una reserva activa.'); return;
     }
 
-    const index = reservas.findIndex(x => x.id === newReservation.id);
-    if (index > -1) {
-        reservas[index] = newReservation;
+    // --- GUARDADO DE RESERVA Y CLIENTE ---
+    const resIndex = reservas.findIndex(x => x.id === newReservation.id);
+    if (resIndex > -1) { reservas[resIndex] = newReservation; } else { reservas.push(newReservation); }
+
+    const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === newReservation.guestName.toLowerCase());
+    if (clientIndex > -1) {
+        clientes[clientIndex] = { ...clientes[clientIndex], ...{
+            dni: newReservation.guestDni, email: newReservation.guestEmail, 
+            phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
+        }};
     } else {
-        reservas.push(newReservation);
+        clientes.push({
+            name: newReservation.guestName, dni: newReservation.guestDni, email: newReservation.guestEmail,
+            phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
+        });
     }
 
     await save();
     renderAll();
+    populateClientsDatalist();
     closeModal();
 }
 
@@ -539,6 +627,10 @@ window.handleDelete=handleDelete;
 window.changeMonth=changeMonth;
 window.exportData = exportData;
 window.calculateDueAmount = calculateDueAmount; 
+window.handleClientAutocomplete = handleClientAutocomplete;
+window.handleSearch = handleSearch;
+window.clearSearch = clearSearch;
+window.calculateFinancialSummary = calculateFinancialSummary;
 
 function gapiLoadedWrapper() { gapiLoaded(); }
 function gisLoadedWrapper() { gisLoaded(); }
@@ -549,12 +641,9 @@ switchCalendar('beltran4');
 
 const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
 gapiScript.onload = gapiLoadedWrapper;
-
 const gisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
 gisScript.onload = gisLoadedWrapper;
 
 </script>
 </body>
 </html>
-
-

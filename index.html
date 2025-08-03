@@ -10,7 +10,7 @@
 <script src="https://apis.google.com/js/api.js" async defer></script>
 
 <style>
-/* ======  CSS (Sin cambios) ====== */
+/* ======  CSS ====== */
 html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;color:#333}
 .header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#2c3e50;color:#ecf0f1;padding:8px 12px}
 .property-btn{background:#34495e;color:#ecf0f1;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.9rem}
@@ -37,6 +37,9 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .date-number{font-weight:bold;font-size:.8rem}
 .event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word}
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
+/* === CSS AÑADIDO === */
+.status-bonif{background-color:#a0e9ff;color:#000;}
+/* === FIN CSS AÑADIDO === */
 .hidden{display:none !important}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal-content{background:#fff;padding:18px;border-radius:6px;width:90%;max-width:600px;max-height:90vh;overflow:auto}
@@ -147,32 +150,50 @@ function genGrid(Y, M) {
  return out;
 }
 
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA LÓGICA DE BONIFICACIÓN ========
+// =================================================================
 function render(prop) {
- const cont=document.getElementById('cal-'+prop);cont.innerHTML='';
- const tbl=document.createElement('table');tbl.innerHTML='<thead><tr>'+['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map(d=>`<th>${d}</th>`).join('')+'</tr></thead>';
- const tbody=document.createElement('tbody');
- genGrid(y,m).forEach(week=>{
-  const tr=document.createElement('tr');
-  week.forEach(day=>{
-    const td=document.createElement('td');
-    if(day){
-      td.innerHTML=`<div class="date-number">${day.getDate()}</div>`;
-      const ds=day.toISOString().split('T')[0];
-      reservas.filter(r=>r.property===prop&&ds>=r.checkIn&&ds<=r.checkOut)
-      .forEach(r=>{
-        const ev=document.createElement('div');
-        ev.className=`event status-${r.status}`;ev.textContent=`${r.guestName} ${r.numGuests}p $${r.total}`;
-        ev.onclick=e=>{e.stopPropagation();openEdit(r.id);};
-        td.appendChild(ev);
-      });
-      td.onclick=()=>openModal({property:prop,date:ds});
-    }
-    tr.appendChild(td);
-  });
-  tbody.appendChild(tr);
- });
- tbl.appendChild(tbody);cont.appendChild(tbl);
+    const cont = document.getElementById('cal-' + prop);
+    cont.innerHTML = '';
+    const tbl = document.createElement('table');
+    tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>';
+    const tbody = document.createElement('tbody');
+    genGrid(y, m).forEach(week => {
+        const tr = document.createElement('tr');
+        week.forEach(day => {
+            const td = document.createElement('td');
+            if (day) {
+                td.innerHTML = `<div class="date-number">${day.getDate()}</div>`;
+                const ds = day.toISOString().split('T')[0];
+                reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut)
+                    .forEach(r => {
+                        const ev = document.createElement('div');
+                        
+                        // Lógica para bonificaciones
+                        if (r.total === 0) {
+                            ev.className = 'event status-bonif';
+                            ev.textContent = `${r.guestName} ${r.numGuests}p (Bonif/Sorteo/Regalo)`;
+                        } else {
+                            ev.className = `event status-${r.status}`;
+                            ev.textContent = `${r.guestName} ${r.numGuests}p $${r.total}`;
+                        }
+                        
+                        ev.onclick = e => { e.stopPropagation(); openEdit(r.id); };
+                        td.appendChild(ev);
+                    });
+                td.onclick = () => openModal({ property: prop, date: ds });
+            }
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    cont.appendChild(tbl);
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
+// =================================================================
 
 function renderAll(){props.forEach(render);refreshList();monthLabel();}
 function switchCalendar(p){props.forEach(pr=>{
@@ -372,9 +393,11 @@ async function save() {
 // ========= FUNCIÓN MODIFICADA PARA VALIDAR SUPERPOSICIÓN =========
 // =================================================================
 async function handleSave() {
-    const id = document.getElementById('reservationId').value || 'res-' + Math.random().toString(36).slice(2);
+    const id = document.getElementById('reservationId').value;
+    const isNew = !id; // Determinar si es una reserva nueva o una modificación
+
     const newReservation = {
-        id,
+        id: id || 'res-' + Math.random().toString(36).slice(2),
         property: propertySelect.value,
         guestName: guestName.value.trim(),
         numGuests: +numGuests.value,
@@ -386,45 +409,60 @@ async function handleSave() {
         status: statusSelect.value
     };
 
+    // --- Validación de campos básicos ---
     if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
         alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
         return;
     }
-
-    const newStart = new Date(newReservation.checkIn + 'T00:00:00');
-    const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
-
-    if (newEnd < newStart) {
+    if (new Date(newReservation.checkOut) < new Date(newReservation.checkIn)) {
         alert('La fecha de egreso debe ser igual o posterior a la de ingreso.');
         return;
     }
 
-    // --- Lógica de validación mejorada ---
+    // --- Validación de importes negativos ---
+    if (newReservation.total < 0 || newReservation.paid < 0 || newReservation.due < 0) {
+        alert('Los importes no pueden ser negativos.');
+        return;
+    }
+
+    // --- Lógica para bonificaciones y modificaciones ---
+    if (isNew) {
+        // Es una ALTA
+        if (newReservation.total === 0) {
+            newReservation.paid = 0;
+            newReservation.due = 0;
+            newReservation.status = 'paid'; // Se considera pagada
+        }
+    } else {
+        // Es una MODIFICACIÓN
+        if (newReservation.total <= 0) {
+            alert('En una modificación, el monto total no puede ser cero o negativo.');
+            return;
+        }
+    }
+
+    // --- Lógica de validación de superposición ---
+    const newStart = new Date(newReservation.checkIn + 'T00:00:00');
+    const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
+    
     const isOverlapping = reservas.some(existing => {
-        // Ignorar la reserva si:
-        // 1. No es de la misma propiedad.
-        // 2. Es la misma reserva que estamos editando.
-        // 3. La reserva existente está cancelada.
         if (existing.property !== newReservation.property || 
             existing.id === newReservation.id || 
             existing.status === 'cancelled') {
             return false;
         }
-
         const existingStart = new Date(existing.checkIn + 'T00:00:00');
         const existingEnd = new Date(existing.checkOut + 'T00:00:00');
-
-        // La condición de superposición de dos intervalos [A, B] y [C, D] es: A <= D y C <= B
         return newStart <= existingEnd && existingStart <= newEnd;
     });
 
     if (isOverlapping) {
-        alert('Error: Las fechas seleccionadas se superponen con una reserva activa en este departamento. Por favor, revise el calendario.');
-        return; // Detiene el proceso de guardado
+        alert('Error: Las fechas seleccionadas se superponen con una reserva activa en este departamento.');
+        return;
     }
-    // --- Fin de la lógica de validación ---
 
-    const index = reservas.findIndex(x => x.id === id);
+    // --- Guardado de la reserva ---
+    const index = reservas.findIndex(x => x.id === newReservation.id);
     if (index > -1) {
         reservas[index] = newReservation;
     } else {
@@ -469,3 +507,4 @@ gisScript.onload = gisLoadedWrapper;
 </script>
 </body>
 </html>
+

@@ -171,10 +171,8 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
-const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
-// === CORRECCIÓN ===
+const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5'; // ID AÑADIDO
 const SCOPES = 'https://www.googleapis.com/auth/drive';
-// === FIN CORRECCIÓN ===
 
 let tokenClient;
 let gapiInited = false;
@@ -315,9 +313,10 @@ function closeModal() { document.getElementById('modalOverlay').classList.add('h
 function openEdit(id) {
     const r = reservas.find(x => x.id === id);
     if (!r) return;
-    openModal();
-    document.getElementById('modalTitle').textContent = 'Editar reserva';
+    document.getElementById('reservationForm').reset();
+    populateClientsDatalist();
     
+    document.getElementById('modalTitle').textContent = 'Editar reserva';
     propertySelect.value = r.property;
     guestName.value = r.guestName;
     guestDni.value = r.guestDni || '';
@@ -335,8 +334,10 @@ function openEdit(id) {
     notes.value = r.notes || '';
     reservationId.value = r.id;
     
-    document.getElementById('deleteBtn').classList.remove('hidden');
     calculateDueAmount();
+    
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
 function handleDelete() {

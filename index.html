@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -53,6 +54,13 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .financial-summary .summary-item{background-color:#f9f9f9;padding:8px;border-radius:4px;}
 .financial-summary .summary-item strong{display:block;margin-bottom:4px;color:#2c3e50;}
 .event.highlight{background-color: #6eff7e !important; border: 2px solid #1a9c32;}
+/* === CSS MODIFICADO === */
+.financial-summary .view-toggle{font-size: 0.8em; font-weight: normal; margin-left: 10px;}
+.financial-summary .compact-breakdown-grid{display:grid; grid-template-columns: 1fr 1fr; gap: 10px;}
+.financial-summary .expanded-breakdown-item{font-size:0.7em; display:flex; justify-content:flex-start; align-items:center; flex-wrap:nowrap; padding: 2px; border-bottom: 1px solid #eee;}
+.financial-summary .expanded-breakdown-item strong{margin-right: 5px; white-space:nowrap;}
+.financial-summary .expanded-breakdown-item span{margin-right: 10px; white-space:nowrap;}
+/* === FIN CSS MODIFICADO === */
 </style>
 </head>
 <body>
@@ -83,9 +91,6 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
   <h3>Check-ins / Check-outs</h3>
   <div id="checkList" class="check-list"></div>
 
-  <!-- ================================================================= -->
-  <!-- ============ RESUMEN FINANCIERO HTML MODIFICADO =============== -->
-  <!-- ================================================================= -->
   <div id="financialSummary" class="financial-summary">
     <h3>Resumen Financiero del Mes</h3>
     <div>
@@ -100,12 +105,16 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
         <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
     </div>
     <hr style="margin: 10px 0;">
-    <h4>Desglose por Departamento</h4>
-    <div id="summaryByProperty"></div>
+    <h4>
+        Desglose por Departamento
+        <label class="view-toggle">
+            <input type="checkbox" id="viewToggleCheckbox" onchange="calculateFinancialSummary()"> Ver todos
+        </label>
+    </h4>
+    <div id="summaryByProperty">
+        <!-- El contenido se generará dinámicamente con JavaScript -->
+    </div>
   </div>
-  <!-- ================================================================= -->
-  <!-- =================== FIN DE LA MODIFICACIÓN ====================== -->
-  <!-- ================================================================= -->
 
   <div class="calendar">
     <div id="cal-beltran4"></div>
@@ -405,7 +414,6 @@ function populateClientsDatalist() {
 // ========= FUNCIÓN MODIFICADA PARA RESUMEN FINANCIERO ============
 // =================================================================
 function formatNumber(num) {
-    // Redondea al entero más cercano y formatea con puntos de miles
     return Math.round(num).toLocaleString('es-AR');
 }
 
@@ -416,10 +424,7 @@ function calculateFinancialSummary() {
 
     let grandTotal = { total: 0, paid: 0, due: 0 };
     const byProperty = {};
-
-    props.forEach(prop => {
-        byProperty[prop] = { total: 0, paid: 0, due: 0 };
-    });
+    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0 }; });
 
     reservas.filter(r => {
         const checkIn = new Date(r.checkIn + 'T00:00:00');
@@ -446,20 +451,45 @@ function calculateFinancialSummary() {
     document.getElementById('summaryDue').textContent = formatNumber(grandTotal.due);
 
     const breakdownContainer = document.getElementById('summaryByProperty');
+    const showAll = document.getElementById('viewToggleCheckbox').checked;
+    
     breakdownContainer.innerHTML = '';
-    props.forEach(prop => {
-        const propData = byProperty[prop];
-        const propElement = document.createElement('div');
-        propElement.innerHTML = `
-            <h4>${propNames[prop]}</h4>
-            <div class="summary-grid">
+
+    if (showAll) {
+        props.forEach(prop => {
+            const propData = byProperty[prop];
+            const propElement = document.createElement('div');
+            propElement.className = 'expanded-breakdown-item';
+            propElement.innerHTML = `
+                <strong>${propNames[prop]}:</strong>
+                <span>Ingresos: ${formatNumber(propData.total)}</span>
+                <span>Cobrado: ${formatNumber(propData.paid)}</span>
+                <span>Saldo: ${formatNumber(propData.due)}</span>
+            `;
+            breakdownContainer.appendChild(propElement);
+        });
+    } else {
+        let selectHTML = '<select id="summaryPropSelect" onchange="calculateFinancialSummary()" style="margin-bottom: 10px;">';
+        props.forEach(prop => {
+            selectHTML += `<option value="${prop}">${propNames[prop]}</option>`;
+        });
+        selectHTML += '</select>';
+        
+        const selectedProp = document.getElementById('summaryPropSelect')?.value || props[0];
+        const propData = byProperty[selectedProp];
+
+        breakdownContainer.innerHTML = `
+            ${selectHTML}
+            <div class="summary-grid compact-breakdown-grid">
                 <div class="summary-item"><strong>Ingresos:</strong> ${formatNumber(propData.total)}</div>
                 <div class="summary-item"><strong>Cobrado:</strong> ${formatNumber(propData.paid)}</div>
                 <div class="summary-item"><strong>Saldo:</strong> ${formatNumber(propData.due)}</div>
             </div>
         `;
-        breakdownContainer.appendChild(propElement);
-    });
+        if(document.getElementById('summaryPropSelect')) {
+            document.getElementById('summaryPropSelect').value = selectedProp;
+        }
+    }
 }
 // =================================================================
 // =================== FIN DE LA FUNCIÓN MODIFICADA ==================

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -26,6 +27,26 @@ main{padding:10px}
 .calendar{overflow-x:auto;margin-top:15px}
 table{border-collapse:collapse;width:100%;table-layout:fixed}
 th,td{border:1px solid #ddd;padding:2px;vertical-align:top;font-size:.75rem;height:85px}
+
+/* --- AJUSTES COSMÉTICOS --- */
+th {
+    height: 45px; /* Altura de la fila de encabezado reducida */
+    text-align: center; /* Texto centrado horizontalmente */
+    vertical-align: middle; /* Texto centrado verticalmente */
+    font-weight: bold;
+}
+.event{
+    display:block;
+    margin-top:2px;
+    padding:1px 2px;
+    border-radius:3px;
+    line-height:1.1;
+    word-break:break-word;
+    cursor: pointer;
+    font-size: 0.8rem; /* Tamaño de fuente ligeramente más grande para legibilidad */
+}
+/* --- FIN AJUSTES --- */
+
 th:nth-child(1){background:#f28c8c;color:#fff}
 th:nth-child(2){background:#e7b97d;color:#fff}
 th:nth-child(3){background:#cfe3a1}
@@ -34,7 +55,6 @@ th:nth-child(5){background:#a0c1e8}
 th:nth-child(6){background:#b79ddb;color:#fff}
 th:nth-child(7){background:#cc8bc7;color:#fff}
 .date-number{font-weight:bold;font-size:.8rem}
-.event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word; cursor: pointer;}
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
 .status-bonif{background-color:#a0e9ff;color:#000;}
 .currency-dolares { color: red !important; font-weight: bold; }
@@ -623,9 +643,6 @@ async function loadClientsData() {
     }
 }
 
-// =================================================================
-// =================== FUNCIÓN CORREGIDA ===========================
-// =================================================================
 async function saveData(fileId, data) {
     if (!gapi.client.getToken()) {
         throw new Error("No autenticado. Inicie sesión con Google para guardar.");
@@ -643,9 +660,6 @@ async function saveData(fileId, data) {
         throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`);
     }
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN CORREGIDA =================
-// =================================================================
 
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));

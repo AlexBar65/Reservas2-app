@@ -366,7 +366,6 @@ async function handleDelete() {
     const id = document.getElementById('reservationId').value;
     if (!id) return;
 
-    // Usamos una simple confirmación por ahora, se puede reemplazar por un modal custom.
     if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
         return;
     }
@@ -424,9 +423,6 @@ function formatNumber(num) {
     return Math.round(num).toLocaleString('es-AR');
 }
 
-// =================================================================
-// =================== FUNCIÓN CORREGIDA ===========================
-// =================================================================
 function calculateFinancialSummary() {
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const firstDayOfMonth = new Date(y, m, 1);
@@ -465,7 +461,6 @@ function calculateFinancialSummary() {
     const showAll = document.getElementById('viewToggleCheckbox').checked;
     
     if (showAll) {
-        // Si "Ver todos" está chequeado, mostramos la lista completa.
         breakdownContainer.innerHTML = ''; 
         props.forEach(prop => {
             const propData = byProperty[prop];
@@ -480,14 +475,11 @@ function calculateFinancialSummary() {
             breakdownContainer.appendChild(propElement);
         });
     } else {
-        // Si no, mostramos el menú desplegable.
-        // 1. Leemos el valor seleccionado ANTES de borrar el HTML.
         const summarySelect = document.getElementById('summaryPropSelect');
         const selectedProp = summarySelect ? summarySelect.value : props[0];
         
         const propData = byProperty[selectedProp];
 
-        // 2. Ahora sí, borramos y volvemos a dibujar el HTML con la información correcta.
         breakdownContainer.innerHTML = `
             <div class="compact-view">
                 <select id="summaryPropSelect" onchange="calculateFinancialSummary()">
@@ -500,9 +492,6 @@ function calculateFinancialSummary() {
         `;
     }
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN CORREGIDA =================
-// =================================================================
 
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();
@@ -516,7 +505,6 @@ function handleSearch() {
     if(highlightedIds.length === 0) {
         alert('No se encontraron reservas para ese huésped.');
     } else {
-        // Navega al mes de la primera reserva encontrada
         const firstReservation = reservas.find(r => r.id === highlightedIds[0]);
         if (firstReservation) {
             const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00');
@@ -647,6 +635,9 @@ async function save() {
     ]);
 }
 
+// =================================================================
+// =================== FUNCIÓN PRINCIPAL CORREGIDA =================
+// =================================================================
 async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
@@ -655,8 +646,12 @@ async function handleSave() {
     try {
         calculateDueAmount();
 
-        const newReservation = {
-            id: document.getElementById('reservationId').value || 'res-' + Date.now(),
+        const reservationId = document.getElementById('reservationId').value;
+        const isEditing = !!reservationId;
+
+        // 1. Recolectar todos los datos del formulario
+        const formData = {
+            id: reservationId || 'res-' + Date.now(),
             property: document.getElementById('propertySelect').value,
             guestName: document.getElementById('guestName').value.trim(),
             guestDni: document.getElementById('guestDni').value.trim(),
@@ -675,60 +670,82 @@ async function handleSave() {
             notes: document.getElementById('notes').value.trim()
         };
 
-        // --- Validaciones ---
-        if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
-            alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); return;
+        // 2. Validaciones
+        if (!formData.guestName || !formData.checkIn || !formData.checkOut) {
+            alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
+            return; // No continuar si faltan datos básicos
         }
-        if (new Date(newReservation.checkOut) < new Date(newReservation.checkIn)) {
-            alert('La fecha de egreso debe ser igual o posterior a la de ingreso.'); return;
+        if (new Date(formData.checkOut) < new Date(formData.checkIn)) {
+            alert('La fecha de egreso debe ser igual o posterior a la de ingreso.');
+            return;
         }
-        if (newReservation.paid > newReservation.total) {
-            alert('El monto pagado no puede ser mayor al monto total.'); return;
+        if (formData.paid > formData.total) {
+            alert('El monto pagado no puede ser mayor al monto total.');
+            return;
         }
-        if (newReservation.paid >= newReservation.total && newReservation.status === 'pending') {
-            newReservation.status = 'paid';
+        if (formData.paid >= formData.total && formData.status === 'pending') {
+            formData.status = 'paid';
         }
         
-        const newStart = new Date(newReservation.checkIn + 'T00:00:00');
-        const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
+        const newStart = new Date(formData.checkIn + 'T00:00:00');
+        const newEnd = new Date(formData.checkOut + 'T00:00:00');
         const isOverlapping = reservas.some(ex => 
-            ex.property === newReservation.property && 
-            ex.id !== newReservation.id && 
+            ex.property === formData.property && 
+            ex.id !== formData.id && 
             ex.status !== 'cancelled' && 
-            newStart <= new Date(ex.checkOut + 'T00:00:00') && 
-            new Date(ex.checkIn + 'T00:00:00') <= newEnd
+            newStart < new Date(ex.checkOut + 'T00:00:00') && // Usar < para permitir check-out y check-in el mismo día
+            new Date(ex.checkIn + 'T00:00:00') < newEnd
         );
         if (isOverlapping) {
-            alert('Error: Las fechas se superponen con una reserva activa en el mismo departamento.'); return;
+            alert('Error: Las fechas se superponen con una reserva activa en el mismo departamento.');
+            return;
         }
 
-        // --- Actualización de datos en memoria ---
-        const resIndex = reservas.findIndex(x => x.id === newReservation.id);
-        if (resIndex > -1) { 
-            reservas[resIndex] = newReservation; 
-        } else { 
-            reservas.push(newReservation); 
+        // 3. Actualizar o crear el registro del CLIENTE de forma robusta
+        let clientIndex = -1;
+        if (isEditing) {
+            // Si estamos editando, buscamos al cliente por el nombre ORIGINAL de la reserva
+            const originalReservation = reservas.find(r => r.id === reservationId);
+            if (originalReservation) {
+                clientIndex = clientes.findIndex(c => c.name.toLowerCase() === originalReservation.guestName.toLowerCase());
+            }
+        } else {
+            // Si es una nueva reserva, buscamos por el nombre ingresado
+            clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
         }
 
-        const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === newReservation.guestName.toLowerCase());
         if (clientIndex > -1) {
-            clientes[clientIndex] = { ...clientes[clientIndex],
-                dni: newReservation.guestDni, email: newReservation.guestEmail, 
-                phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
-            };
-        } else if (newReservation.guestName) {
+            // Cliente encontrado, lo ACTUALIZAMOS con todos los datos del formulario
+            clientes[clientIndex].name = formData.guestName;
+            clientes[clientIndex].dni = formData.guestDni;
+            clientes[clientIndex].email = formData.guestEmail;
+            clientes[clientIndex].phone1 = formData.guestPhone1;
+            clientes[clientIndex].phone2 = formData.guestPhone2;
+        } else if (formData.guestName) {
+            // Cliente no encontrado, lo CREAMOS
             clientes.push({
-                name: newReservation.guestName, dni: newReservation.guestDni, email: newReservation.guestEmail,
-                phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
+                name: formData.guestName,
+                dni: formData.guestDni,
+                email: formData.guestEmail,
+                phone1: formData.guestPhone1,
+                phone2: formData.guestPhone2
             });
         }
+
+        // 4. Actualizar o crear el registro de la RESERVA
+        const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1;
+        if (resIndex > -1) { 
+            reservas[resIndex] = formData; 
+        } else { 
+            reservas.push(formData); 
+        }
         
-        // --- Guardado persistente ---
+        // 5. Guardar todo
         await save();
         console.log('Reserva guardada exitosamente.');
 
         // Navegar al mes de la reserva guardada para feedback visual
-        const checkInDate = new Date(newReservation.checkIn + 'T00:00:00');
+        const checkInDate = new Date(formData.checkIn + 'T00:00:00');
         y = checkInDate.getFullYear();
         m = checkInDate.getMonth();
 
@@ -736,7 +753,7 @@ async function handleSave() {
         console.error("Error al guardar la reserva:", error);
         alert("Ocurrió un error al guardar la reserva en la nube. Los cambios se han guardado localmente.");
     } finally {
-        // --- Esto se ejecuta SIEMPRE, con o sin errores ---
+        // Esto se ejecuta SIEMPRE, con o sin errores
         saveBtn.disabled = false;
         saveBtn.textContent = 'Guardar';
         renderAll();
@@ -744,6 +761,9 @@ async function handleSave() {
         closeModal();
     }
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN CORREGIDA =================
+// =================================================================
 
 // --- INICIALIZACIÓN ---
 function init() {
@@ -780,5 +800,3 @@ init();
 </script>
 </body>
 </html>
-
-

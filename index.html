@@ -370,14 +370,16 @@ async function handleDelete() {
         return;
     }
 
+    const originalReservas = [...reservas];
     reservas = reservas.filter(r => r.id !== id);
     
     try {
         await save();
-        console.log('Reserva eliminada y datos guardados.');
+        console.log('Reserva eliminada y datos guardados en la nube.');
     } catch (error) {
+        reservas = originalReservas; // Revert local changes on cloud save failure
         console.error('Error al guardar la eliminación:', error);
-        alert('No se pudo guardar la eliminación en la nube, pero se eliminó localmente.');
+        alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
     } finally {
         renderAll();
         closeModal();
@@ -548,7 +550,11 @@ function maybeEnableAuthButtons() {
 }
 function handleAuthClick() {
     tokenClient.callback = async (resp) => {
-        if (resp.error !== undefined) { throw (resp); }
+        if (resp.error !== undefined) { 
+            console.error("Error de autenticación de Google:", resp);
+            alert("Fallo en la autenticación con Google. Por favor, intente de nuevo.");
+            return;
+        }
         updateSigninStatus(true);
         await Promise.all([loadReservasData(), loadClientsData()]);
     };
@@ -573,16 +579,21 @@ function updateSigninStatus(isSignedIn) {
     } else {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
-        reservas = [];
-        clientes = [];
+        reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
+        clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
         renderAll();
     }
 }
 
 async function loadData(fileId) {
-    const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-    let data = JSON.parse(response.body);
-    return Array.isArray(data) ? data : [];
+    try {
+        const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+        let data = JSON.parse(response.body);
+        return Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
+        throw new Error(`No se pudo cargar el archivo ${fileId}. ¿Existe y tiene permisos?`);
+    }
 }
 
 async function loadReservasData() {
@@ -594,10 +605,10 @@ async function loadReservasData() {
             currency: r.currency || 'Pesos Argentinos'
         }));
         localStorage.setItem('reservas', JSON.stringify(reservas));
-        renderAll();
     } catch (err) { 
-        console.error("Error al cargar reservas desde Drive: ", err); 
         alert("No se pudieron cargar las reservas desde Google Drive. Se usarán los datos locales si existen.");
+    } finally {
+        renderAll();
     }
 }
 
@@ -605,26 +616,36 @@ async function loadClientsData() {
     try {
         clientes = await loadData(CLIENTS_FILE_ID);
         localStorage.setItem('clientes', JSON.stringify(clientes));
-        populateClientsDatalist();
     } catch (err) { 
-        console.error("Error al cargar clientes desde Drive: ", err); 
-        alert("No se pudieron cargar los clientes desde Google Drive.");
+        alert("No se pudieron cargar los clientes desde Google Drive. Se usarán los datos locales si existen.");
+    } finally {
+        populateClientsDatalist();
     }
 }
 
+// =================================================================
+// =================== FUNCIÓN CORREGIDA ===========================
+// =================================================================
 async function saveData(fileId, data) {
     if (!gapi.client.getToken()) {
-        console.warn("No autenticado. Guardando solo localmente.");
-        return;
+        throw new Error("No autenticado. Inicie sesión con Google para guardar.");
     }
     const content = JSON.stringify(data, null, 2);
-    await gapi.client.request({
-        path: '/upload/drive/v3/files/' + fileId,
-        method: 'PATCH',
-        params: { uploadType: 'media' },
-        body: content,
-    });
+    try {
+        await gapi.client.request({
+            path: '/upload/drive/v3/files/' + fileId,
+            method: 'PATCH',
+            params: { uploadType: 'media' },
+            body: content,
+        });
+    } catch (error) {
+        console.error(`Error al guardar el archivo ${fileId} en Drive:`, error);
+        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`);
+    }
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN CORREGIDA =================
+// =================================================================
 
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
@@ -635,13 +656,14 @@ async function save() {
     ]);
 }
 
-// =================================================================
-// =================== FUNCIÓN PRINCIPAL CORREGIDA =================
-// =================================================================
 async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando...';
+
+    // Guardar estado original por si falla el guardado en la nube
+    const originalReservas = JSON.parse(JSON.stringify(reservas));
+    const originalClientes = JSON.parse(JSON.stringify(clientes));
 
     try {
         calculateDueAmount();
@@ -649,7 +671,6 @@ async function handleSave() {
         const reservationId = document.getElementById('reservationId').value;
         const isEditing = !!reservationId;
 
-        // 1. Recolectar todos los datos del formulario
         const formData = {
             id: reservationId || 'res-' + Date.now(),
             property: document.getElementById('propertySelect').value,
@@ -670,18 +691,14 @@ async function handleSave() {
             notes: document.getElementById('notes').value.trim()
         };
 
-        // 2. Validaciones
         if (!formData.guestName || !formData.checkIn || !formData.checkOut) {
-            alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
-            return; // No continuar si faltan datos básicos
+            throw new Error('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
         }
         if (new Date(formData.checkOut) < new Date(formData.checkIn)) {
-            alert('La fecha de egreso debe ser igual o posterior a la de ingreso.');
-            return;
+            throw new Error('La fecha de egreso debe ser igual o posterior a la de ingreso.');
         }
         if (formData.paid > formData.total) {
-            alert('El monto pagado no puede ser mayor al monto total.');
-            return;
+            throw new Error('El monto pagado no puede ser mayor al monto total.');
         }
         if (formData.paid >= formData.total && formData.status === 'pending') {
             formData.status = 'paid';
@@ -693,81 +710,63 @@ async function handleSave() {
             ex.property === formData.property && 
             ex.id !== formData.id && 
             ex.status !== 'cancelled' && 
-            newStart < new Date(ex.checkOut + 'T00:00:00') && // Usar < para permitir check-out y check-in el mismo día
+            newStart < new Date(ex.checkOut + 'T00:00:00') &&
             new Date(ex.checkIn + 'T00:00:00') < newEnd
         );
         if (isOverlapping) {
-            alert('Error: Las fechas se superponen con una reserva activa en el mismo departamento.');
-            return;
+            throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.');
         }
 
-        // 3. Actualizar o crear el registro del CLIENTE de forma robusta
-        let clientIndex = -1;
-        if (isEditing) {
-            // Si estamos editando, buscamos al cliente por el nombre ORIGINAL de la reserva
-            const originalReservation = reservas.find(r => r.id === reservationId);
-            if (originalReservation) {
-                clientIndex = clientes.findIndex(c => c.name.toLowerCase() === originalReservation.guestName.toLowerCase());
-            }
-        } else {
-            // Si es una nueva reserva, buscamos por el nombre ingresado
-            clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
-        }
-
-        if (clientIndex > -1) {
-            // Cliente encontrado, lo ACTUALIZAMOS con todos los datos del formulario
-            clientes[clientIndex].name = formData.guestName;
-            clientes[clientIndex].dni = formData.guestDni;
-            clientes[clientIndex].email = formData.guestEmail;
-            clientes[clientIndex].phone1 = formData.guestPhone1;
-            clientes[clientIndex].phone2 = formData.guestPhone2;
-        } else if (formData.guestName) {
-            // Cliente no encontrado, lo CREAMOS
-            clientes.push({
-                name: formData.guestName,
-                dni: formData.guestDni,
-                email: formData.guestEmail,
-                phone1: formData.guestPhone1,
-                phone2: formData.guestPhone2
-            });
-        }
-
-        // 4. Actualizar o crear el registro de la RESERVA
+        // --- Actualizar datos en memoria ---
         const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1;
         if (resIndex > -1) { 
             reservas[resIndex] = formData; 
         } else { 
             reservas.push(formData); 
         }
-        
-        // 5. Guardar todo
-        await save();
-        console.log('Reserva guardada exitosamente.');
 
-        // Navegar al mes de la reserva guardada para feedback visual
+        let clientIndex = -1;
+        if (isEditing) {
+            const originalReservation = originalReservas.find(r => r.id === reservationId);
+            if (originalReservation) {
+                clientIndex = clientes.findIndex(c => c.name.toLowerCase() === originalReservation.guestName.toLowerCase());
+            }
+        } else {
+            clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
+        }
+
+        if (clientIndex > -1) {
+            clientes[clientIndex] = { ...clientes[clientIndex], ...{name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2} };
+        } else if (formData.guestName) {
+            clientes.push({ name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2 });
+        }
+        
+        await save();
+        console.log('Reserva guardada exitosamente en la nube.');
+
         const checkInDate = new Date(formData.checkIn + 'T00:00:00');
         y = checkInDate.getFullYear();
         m = checkInDate.getMonth();
+        
+        closeModal();
 
     } catch (error) {
         console.error("Error al guardar la reserva:", error);
-        alert("Ocurrió un error al guardar la reserva en la nube. Los cambios se han guardado localmente.");
+        alert(`FALLO AL GUARDAR: ${error.message}. Los cambios no se guardaron. Por favor, revise los datos o inicie sesión de nuevo.`);
+        // Revertir los cambios en memoria al estado original
+        reservas = originalReservas;
+        clientes = originalClientes;
     } finally {
-        // Esto se ejecuta SIEMPRE, con o sin errores
         saveBtn.disabled = false;
         saveBtn.textContent = 'Guardar';
         renderAll();
         populateClientsDatalist();
-        closeModal();
     }
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN CORREGIDA =================
-// =================================================================
+
 
 // --- INICIALIZACIÓN ---
 function init() {
-    // Asignación de funciones al objeto window para que sean accesibles desde el HTML
     window.switchCalendar = switchCalendar;
     window.openModal = openModal;
     window.closeModal = closeModal;
@@ -782,13 +781,11 @@ function init() {
     window.calculateFinancialSummary = calculateFinancialSummary;
     window.openEdit = openEdit;
 
-    // Carga inicial de datos y renderizado
     monthLabel();
     renderAll();
     switchCalendar('beltran4');
     populateClientsDatalist();
 
-    // Listeners para la carga de las APIs de Google
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
     gapiScript.onload = gapiLoaded;
     const gisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');

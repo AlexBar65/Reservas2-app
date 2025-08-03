@@ -182,9 +182,6 @@ function switchCalendar(p){props.forEach(pr=>{
 });}
 function changeMonth(delta){m+=delta;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}renderAll();}
 
-// =================================================================
-// ========= FUNCIÓN MODIFICADA PARA CORREGIR LA LÓGICA ============
-// =================================================================
 function refreshList() {
     const list = document.getElementById('checkList');
     list.innerHTML = '';
@@ -202,7 +199,6 @@ function refreshList() {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    // --- Sección "Hoy" ---
     const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
     const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
 
@@ -220,7 +216,6 @@ function refreshList() {
     }
     list.appendChild(todaySection);
 
-    // --- Sección "Mañana" ---
     const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
     const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
 
@@ -238,9 +233,6 @@ function refreshList() {
     }
     list.appendChild(tomorrowSection);
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
-// =================================================================
 
 function openModal(pref){document.getElementById('modalOverlay').classList.remove('hidden');
  document.getElementById('reservationForm').reset();document.getElementById('reservationId').value='';
@@ -376,24 +368,71 @@ async function save() {
     await saveReservaData();
 }
 
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA VALIDAR SUPERPOSICIÓN =========
+// =================================================================
 async function handleSave() {
- const id=document.getElementById('reservationId').value||'res-'+Math.random().toString(36).slice(2);
- const r={id,
-  property:propertySelect.value,guestName:guestName.value.trim(),
-  numGuests:+numGuests.value,checkIn:checkInDate.value,checkOut:checkOutDate.value,
-  total:+totalAmount.value,paid:+paidAmount.value,due:+dueAmount.value,status:statusSelect.value};
- if(!r.guestName||!r.checkIn||!r.checkOut){alert('Campos obligatorios faltantes');return;}
- if(new Date(r.checkOut)<new Date(r.checkIn)){alert('Egreso debe ser ≥ ingreso');return;}
- const index = reservas.findIndex(x => x.id === id);
- if (index > -1) {
-    reservas[index] = r;
- } else {
-    reservas.push(r);
- }
- await save();
- renderAll();
- closeModal();
+    const id = document.getElementById('reservationId').value || 'res-' + Math.random().toString(36).slice(2);
+    const newReservation = {
+        id,
+        property: propertySelect.value,
+        guestName: guestName.value.trim(),
+        numGuests: +numGuests.value,
+        checkIn: checkInDate.value,
+        checkOut: checkOutDate.value,
+        total: +totalAmount.value,
+        paid: +paidAmount.value,
+        due: +dueAmount.value,
+        status: statusSelect.value
+    };
+
+    if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
+        alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
+        return;
+    }
+
+    const newStart = new Date(newReservation.checkIn + 'T00:00:00');
+    const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
+
+    if (newEnd < newStart) {
+        alert('La fecha de egreso debe ser igual o posterior a la de ingreso.');
+        return;
+    }
+
+    // --- Lógica de validación ---
+    const isOverlapping = reservas.some(existing => {
+        // Solo comparar con reservas de la misma propiedad y que no sean la que estamos editando
+        if (existing.property !== newReservation.property || existing.id === newReservation.id) {
+            return false;
+        }
+
+        const existingStart = new Date(existing.checkIn + 'T00:00:00');
+        const existingEnd = new Date(existing.checkOut + 'T00:00:00');
+
+        // La condición de superposición de dos intervalos [A, B] y [C, D] es: A <= D y C <= B
+        return newStart <= existingEnd && existingStart <= newEnd;
+    });
+
+    if (isOverlapping) {
+        alert('Error: Las fechas seleccionadas se superponen con una reserva existente en este departamento. Por favor, revise el calendario.');
+        return; // Detiene el proceso de guardado
+    }
+    // --- Fin de la lógica de validación ---
+
+    const index = reservas.findIndex(x => x.id === id);
+    if (index > -1) {
+        reservas[index] = newReservation;
+    } else {
+        reservas.push(newReservation);
+    }
+
+    await save();
+    renderAll();
+    closeModal();
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
+// =================================================================
 
 
 // --- INICIALIZACIÓN ---

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -53,10 +52,11 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .financial-summary .summary-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px; margin-bottom: 15px;}
 .financial-summary .summary-item{background-color:#f9f9f9;padding:8px;border-radius:4px;}
 .financial-summary .summary-item strong{display:block;margin-bottom:4px;color:#2c3e50;}
-.event.highlight{background-color: #6eff7e !important; border: 2px solid #1a9c32;}
 /* === CSS MODIFICADO === */
+.event.highlight{background-color: #d8b4fe !important; border: 2px solid #8b5cf6;}
 .financial-summary .view-toggle{font-size: 0.8em; font-weight: normal; margin-left: 10px;}
-.financial-summary .compact-breakdown-grid{display:grid; grid-template-columns: 1fr 1fr; gap: 10px;}
+.financial-summary .compact-view{display: flex; align-items: center; gap: 10px; font-size: 0.8em;}
+.financial-summary .compact-view select{font-size: 0.9em; padding: 2px;}
 .financial-summary .expanded-breakdown-item{font-size:0.7em; display:flex; justify-content:flex-start; align-items:center; flex-wrap:nowrap; padding: 2px; border-bottom: 1px solid #eee;}
 .financial-summary .expanded-breakdown-item strong{margin-right: 5px; white-space:nowrap;}
 .financial-summary .expanded-breakdown-item span{margin-right: 10px; white-space:nowrap;}
@@ -469,26 +469,19 @@ function calculateFinancialSummary() {
             breakdownContainer.appendChild(propElement);
         });
     } else {
-        let selectHTML = '<select id="summaryPropSelect" onchange="calculateFinancialSummary()" style="margin-bottom: 10px;">';
-        props.forEach(prop => {
-            selectHTML += `<option value="${prop}">${propNames[prop]}</option>`;
-        });
-        selectHTML += '</select>';
-        
         const selectedProp = document.getElementById('summaryPropSelect')?.value || props[0];
         const propData = byProperty[selectedProp];
 
         breakdownContainer.innerHTML = `
-            ${selectHTML}
-            <div class="summary-grid compact-breakdown-grid">
-                <div class="summary-item"><strong>Ingresos:</strong> ${formatNumber(propData.total)}</div>
-                <div class="summary-item"><strong>Cobrado:</strong> ${formatNumber(propData.paid)}</div>
-                <div class="summary-item"><strong>Saldo:</strong> ${formatNumber(propData.due)}</div>
+            <div class="compact-view">
+                <select id="summaryPropSelect" onchange="calculateFinancialSummary()">
+                    ${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}
+                </select>
+                <span><strong>Ingresos:</strong> ${formatNumber(propData.total)}</span>
+                <span><strong>Cobrado:</strong> ${formatNumber(propData.paid)}</span>
+                <span><strong>Saldo:</strong> ${formatNumber(propData.due)}</span>
             </div>
         `;
-        if(document.getElementById('summaryPropSelect')) {
-            document.getElementById('summaryPropSelect').value = selectedProp;
-        }
     }
 }
 // =================================================================
@@ -731,3 +724,5 @@ gisScript.onload = gisLoadedWrapper;
 </script>
 </body>
 </html>
+
+

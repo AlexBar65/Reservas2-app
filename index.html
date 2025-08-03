@@ -38,6 +38,9 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word}
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
 .status-bonif{background-color:#a0e9ff;color:#000;}
+/* === CSS AÑADIDO === */
+.currency-dolares { color: red !important; }
+/* === FIN CSS AÑADIDO === */
 .hidden{display:none !important}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal-content{background:#fff;padding:18px;border-radius:6px;width:90%;max-width:600px;max-height:90vh;overflow:auto}
@@ -97,6 +100,22 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
       <input id="checkInDate" type="date" required />
       <input id="checkOutDate" type="date" required />
+      
+      <!-- === CAMPOS NUEVOS === -->
+      <select id="platformSelect" required>
+        <option value="AirBnB">AirBnB</option>
+        <option value="Booking">Booking</option>
+        <option value="Alquiler argentino">Alquiler argentino</option>
+        <option value="Para Irnos">Para Irnos</option>
+        <option value="x Fuera">x Fuera</option>
+        <option value="Otra" selected>Otra</option>
+      </select>
+      <select id="currencySelect" required>
+        <option value="Pesos Argentinos" selected>Pesos Argentinos</option>
+        <option value="Dolares">Dolares</option>
+      </select>
+      <!-- === FIN CAMPOS NUEVOS === -->
+      
       <input id="totalAmount" type="number" step="0.01" placeholder="Monto total" required oninput="calculateDueAmount()" />
       <input id="paidAmount" type="number" step="0.01" placeholder="Monto pagado/seña" required oninput="calculateDueAmount()" />
       <input id="dueAmount" type="number" step="0.01" placeholder="A pagar al ingreso" readonly />
@@ -153,6 +172,9 @@ function genGrid(Y, M) {
  return out;
 }
 
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA NUEVOS CAMPOS =================
+// =================================================================
 function render(prop) {
     const cont = document.getElementById('cal-' + prop);
     cont.innerHTML = '';
@@ -170,12 +192,19 @@ function render(prop) {
                     .forEach(r => {
                         const ev = document.createElement('div');
                         
+                        // Determinar clase y texto
                         if (r.total === 0) {
                             ev.className = 'event status-bonif';
                             ev.textContent = `${r.guestName} ${r.numGuests}p (Bonif/Sorteo/Regalo)`;
                         } else {
                             ev.className = `event status-${r.status}`;
-                            ev.textContent = `${r.guestName} ${r.numGuests}p $${r.total}`;
+                            let currencyIndicator = r.currency === 'Dolares' ? ' (Dol)' : '';
+                            ev.textContent = `${r.guestName} ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`;
+                        }
+
+                        // Aplicar color rojo si la moneda es Dólares
+                        if (r.currency === 'Dolares') {
+                            ev.classList.add('currency-dolares');
                         }
                         
                         ev.onclick = e => { e.stopPropagation(); openEdit(r.id); };
@@ -190,6 +219,7 @@ function render(prop) {
     tbl.appendChild(tbody);
     cont.appendChild(tbl);
 }
+// =================================================================
 
 function renderAll(){props.forEach(render);refreshList();monthLabel();}
 function switchCalendar(p){props.forEach(pr=>{
@@ -243,16 +273,12 @@ function refreshList() {
     list.appendChild(tomorrowSection);
 }
 
-// =================================================================
-// =================== NUEVA FUNCIÓN AÑADIDA =======================
-// =================================================================
 function calculateDueAmount() {
     const total = parseFloat(document.getElementById('totalAmount').value) || 0;
     const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
     const due = total - paid;
     document.getElementById('dueAmount').value = due.toFixed(2);
 }
-// =================================================================
 
 function openModal(pref) {
     document.getElementById('modalOverlay').classList.remove('hidden');
@@ -265,31 +291,40 @@ function openModal(pref) {
         checkOutDate.value = pref.date;
     }
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
-    calculateDueAmount(); // Calcular al abrir
+    calculateDueAmount(); 
 }
 
 function closeModal() {
     document.getElementById('modalOverlay').classList.add('hidden');
 }
 
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA NUEVOS CAMPOS =================
+// =================================================================
 function openEdit(id) {
     const r = reservas.find(x => x.id === id);
     if (!r) return;
     openModal();
     document.getElementById('modalTitle').textContent = 'Editar reserva';
+    
+    // Asignar valores a todos los campos, incluyendo los nuevos
     propertySelect.value = r.property;
     guestName.value = r.guestName;
     numGuests.value = r.numGuests;
     checkInDate.value = r.checkIn;
     checkOutDate.value = r.checkOut;
+    // Asignar valores por defecto a los nuevos campos si no existen en el registro
+    platformSelect.value = r.platform || 'Otra';
+    currencySelect.value = r.currency || 'Pesos Argentinos';
     totalAmount.value = r.total;
     paidAmount.value = r.paid;
-    dueAmount.value = r.due;
     statusSelect.value = r.status;
     reservationId.value = r.id;
+    
     document.getElementById('deleteBtn').classList.remove('hidden');
-    calculateDueAmount(); // Calcular también al editar
+    calculateDueAmount(); // Calcular el saldo al abrir para editar
 }
+// =================================================================
 
 function handleDelete() {
     const id = document.getElementById('reservationId').value;
@@ -306,8 +341,13 @@ function exportData() {
         alert('No hay datos');
         return;
     }
-    const csv = ['ID,Propiedad,Nombre,Pers,Ingreso,Egreso,Total,Pago,IngresoPend,Estado'];
-    reservas.forEach(r => csv.push([r.id, r.property, r.guestName, r.numGuests, r.checkIn, r.checkOut, r.total, r.paid, r.due, r.status].join(',')));
+    // Añadir nuevos campos a la exportación CSV
+    const csv = ['ID,Propiedad,Nombre,Pers,Ingreso,Egreso,Plataforma,Moneda,Total,Pago,IngresoPend,Estado'];
+    reservas.forEach(r => csv.push([
+        r.id, r.property, r.guestName, r.numGuests, r.checkIn, r.checkOut,
+        r.platform || 'Otra', r.currency || 'Pesos Argentinos', // Añadir valores por defecto si no existen
+        r.total, r.paid, r.due, r.status
+    ].join(',')));
     const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -373,11 +413,31 @@ function updateSigninStatus(isSignedIn) {
         renderAll();
     }
 }
+
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA DATOS ANTIGUOS ================
+// =================================================================
 async function loadReservaData() {
     try {
         const response = await gapi.client.drive.files.get({ fileId: FILE_ID, alt: 'media' });
-        const data = JSON.parse(response.body);
-        reservas = Array.isArray(data) ? data : [];
+        let data = JSON.parse(response.body);
+        
+        // Asegurar que los datos son un array
+        if (!Array.isArray(data)) {
+            data = [];
+        }
+
+        // Añadir campos por defecto a registros antiguos
+        reservas = data.map(r => {
+            if (!r.platform) {
+                r.platform = 'Otra';
+            }
+            if (!r.currency) {
+                r.currency = 'Pesos Argentinos';
+            }
+            return r;
+        });
+
         localStorage.setItem('reservas', JSON.stringify(reservas));
         renderAll();
     } catch (err) {
@@ -385,6 +445,8 @@ async function loadReservaData() {
         alert("No se pudo cargar el archivo de reservas.");
     }
 }
+// =================================================================
+
 async function saveReservaData() {
     if (gapi.client.getToken()) {
         const content = JSON.stringify(reservas, null, 2);
@@ -411,7 +473,6 @@ async function handleSave() {
     const id = document.getElementById('reservationId').value;
     const isNew = !id;
 
-    // Recalcular el 'due' por si acaso, usando la misma función
     calculateDueAmount();
 
     const newReservation = {
@@ -421,13 +482,14 @@ async function handleSave() {
         numGuests: +numGuests.value,
         checkIn: checkInDate.value,
         checkOut: checkOutDate.value,
+        platform: platformSelect.value, // Campo nuevo
+        currency: currencySelect.value, // Campo nuevo
         total: +totalAmount.value,
         paid: +paidAmount.value,
-        due: +dueAmount.value, // Tomar el valor ya calculado
+        due: +dueAmount.value,
         status: statusSelect.value
     };
 
-    // --- VALIDACIONES ---
     if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
         alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.');
         return;
@@ -445,7 +507,6 @@ async function handleSave() {
         return;
     }
     
-    // --- LÓGICA DE NEGOCIO ---
     if (isNew) {
         if (newReservation.total === 0) {
             newReservation.paid = 0;
@@ -459,12 +520,10 @@ async function handleSave() {
         }
     }
     
-    // Auto-actualizar estado a "Pagado" si corresponde
     if (newReservation.paid >= newReservation.total && newReservation.status !== 'cancelled') {
         newReservation.status = 'paid';
     }
 
-    // --- VALIDACIÓN DE SUPERPOSICIÓN ---
     const newStart = new Date(newReservation.checkIn + 'T00:00:00');
     const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
     const isOverlapping = reservas.some(existing => {
@@ -481,7 +540,6 @@ async function handleSave() {
         return;
     }
 
-    // --- GUARDADO ---
     const index = reservas.findIndex(x => x.id === newReservation.id);
     if (index > -1) {
         reservas[index] = newReservation;
@@ -505,7 +563,7 @@ window.handleSave=handleSave;
 window.handleDelete=handleDelete;
 window.changeMonth=changeMonth;
 window.exportData = exportData;
-window.calculateDueAmount = calculateDueAmount; // Exponer la función globalmente
+window.calculateDueAmount = calculateDueAmount; 
 
 function gapiLoadedWrapper() { gapiLoaded(); }
 function gisLoadedWrapper() { gisLoaded(); }
@@ -523,3 +581,4 @@ gisScript.onload = gisLoadedWrapper;
 </script>
 </body>
 </html>
+

@@ -407,18 +407,79 @@ async function handleDelete() {
     }
 }
 
+// =================================================================
+// =================== FUNCIÓN MODIFICADA ==========================
+// =================================================================
 function exportData() {
-    if (!reservas.length) { alert('No hay datos para exportar.'); return; }
-    const csv = ['ID,Propiedad,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total,Pago,IngresoPend,Estado,Notas'];
-    reservas.forEach(r => csv.push([
-        r.id, propNames[r.property], r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '',
-        r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos',
-        r.total, r.paid, r.due, r.status, `"${(r.notes || '').replace(/"/g, '""')}"`
-    ].join(',')));
-    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    if (!reservas.length) { 
+        alert('No hay datos para exportar.'); 
+        return; 
+    }
+    
+    // 1. Obtener la cotización del dólar desde el input
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+
+    // 2. Definir el nuevo encabezado del CSV
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Estado,Notas';
+    const csvRows = [csvHeader];
+
+    // 3. Procesar cada reserva para crear las filas del CSV
+    reservas.forEach(r => {
+        // Crear la columna Periodo (AAAAMM)
+        const checkInDate = new Date(r.checkIn + 'T00:00:00');
+        const year = checkInDate.getFullYear();
+        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
+        const periodo = `${year}${month}`;
+
+        let total = r.total;
+        let paid = r.paid;
+        let due = r.due;
+
+        // Convertir a pesos si la moneda es Dólares
+        if (r.currency === 'Dolares') {
+            total *= exchangeRate;
+            paid *= exchangeRate;
+            due *= exchangeRate;
+        }
+
+        // Crear la fila con todos los datos
+        const row = [
+            r.id,
+            propNames[r.property],
+            periodo,
+            r.guestName,
+            r.guestDni || '',
+            r.guestEmail || '',
+            r.guestPhone1 || '',
+            r.guestPhone2 || '',
+            r.numGuests,
+            r.checkIn,
+            r.checkOut,
+            r.platform || 'Otra',
+            r.currency || 'Pesos Argentinos',
+            total.toFixed(2),
+            paid.toFixed(2),
+            due.toFixed(2),
+            r.status,
+            `"${(r.notes || '').replace(/"/g, '""')}"`
+        ].join(',');
+        
+        csvRows.push(row);
+    });
+
+    // 4. Crear y descargar el archivo CSV
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'reservas.csv'; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'reservas_export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ================
+// =================================================================
+
 
 function handleClientAutocomplete() {
     const name = document.getElementById('guestName').value;

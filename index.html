@@ -48,8 +48,8 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .search-container{display:flex;gap:4px;align-items:center;margin-left:16px;}
 .search-container input{padding:4px;border-radius:4px;border:1px solid #7f8c8d;}
 .financial-summary{background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px;margin-top:15px;}
-.financial-summary h3{margin-top:0;}
-.financial-summary .summary-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;}
+.financial-summary h3, .financial-summary h4{margin-top:0; margin-bottom: 8px;}
+.financial-summary .summary-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px; margin-bottom: 15px;}
 .financial-summary .summary-item{background-color:#f9f9f9;padding:8px;border-radius:4px;}
 .financial-summary .summary-item strong{display:block;margin-bottom:4px;color:#2c3e50;}
 .event.highlight{background-color: #6eff7e !important; border: 2px solid #1a9c32;}
@@ -83,18 +83,29 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
   <h3>Check-ins / Check-outs</h3>
   <div id="checkList" class="check-list"></div>
 
+  <!-- ================================================================= -->
+  <!-- ============ RESUMEN FINANCIERO HTML MODIFICADO =============== -->
+  <!-- ================================================================= -->
   <div id="financialSummary" class="financial-summary">
     <h3>Resumen Financiero del Mes</h3>
     <div>
         <label for="exchangeRate">Cotización Dólar:</label>
-        <input type="number" id="exchangeRate" value="1000" oninput="calculateFinancialSummary()">
+        <input type="number" id="exchangeRate" value="1300" oninput="calculateFinancialSummary()">
     </div>
+    <hr style="margin: 10px 0;">
+    <h4>Totales Generales</h4>
     <div class="summary-grid">
         <div class="summary-item"><strong>Ingresos Totales (ARS):</strong> <span id="summaryTotal">0</span></div>
         <div class="summary-item"><strong>Total Cobrado (ARS):</strong> <span id="summaryPaid">0</span></div>
         <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
     </div>
+    <hr style="margin: 10px 0;">
+    <h4>Desglose por Departamento</h4>
+    <div id="summaryByProperty"></div>
   </div>
+  <!-- ================================================================= -->
+  <!-- =================== FIN DE LA MODIFICACIÓN ====================== -->
+  <!-- ================================================================= -->
 
   <div class="calendar">
     <div id="cal-beltran4"></div>
@@ -183,14 +194,13 @@ const signoutBtn = document.getElementById('signoutBtn');
 
 // --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
-// =================================================================
-// =================== LÍNEAS CORREGIDAS ===========================
-// =================================================================
+const propNames = {
+    beltran4: 'Beltrán 4º',
+    beltran8: 'Beltrán 8º',
+    directorio8: 'Directorio 8º'
+};
 let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
 let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
-// =================================================================
-// =================== FIN DE LA CORRECCIÓN ========================
-// =================================================================
 let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -391,27 +401,69 @@ function populateClientsDatalist() {
     });
 }
 
+// =================================================================
+// ========= FUNCIÓN MODIFICADA PARA RESUMEN FINANCIERO ============
+// =================================================================
+function formatNumber(num) {
+    // Redondea al entero más cercano y formatea con puntos de miles
+    return Math.round(num).toLocaleString('es-AR');
+}
+
 function calculateFinancialSummary() {
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const firstDayOfMonth = new Date(y, m, 1);
     const lastDayOfMonth = new Date(y, m + 1, 0);
 
-    let total = 0, paid = 0, due = 0;
+    let grandTotal = { total: 0, paid: 0, due: 0 };
+    const byProperty = {};
+
+    props.forEach(prop => {
+        byProperty[prop] = { total: 0, paid: 0, due: 0 };
+    });
 
     reservas.filter(r => {
         const checkIn = new Date(r.checkIn + 'T00:00:00');
         return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled';
     }).forEach(r => {
         const rate = r.currency === 'Dolares' ? exchangeRate : 1;
-        total += r.total * rate;
-        paid += r.paid * rate;
-        due += r.due * rate;
+        const currentTotal = r.total * rate;
+        const currentPaid = r.paid * rate;
+        const currentDue = r.due * rate;
+
+        grandTotal.total += currentTotal;
+        grandTotal.paid += currentPaid;
+        grandTotal.due += currentDue;
+
+        if (byProperty[r.property]) {
+            byProperty[r.property].total += currentTotal;
+            byProperty[r.property].paid += currentPaid;
+            byProperty[r.property].due += currentDue;
+        }
     });
 
-    document.getElementById('summaryTotal').textContent = total.toFixed(2);
-    document.getElementById('summaryPaid').textContent = paid.toFixed(2);
-    document.getElementById('summaryDue').textContent = due.toFixed(2);
+    document.getElementById('summaryTotal').textContent = formatNumber(grandTotal.total);
+    document.getElementById('summaryPaid').textContent = formatNumber(grandTotal.paid);
+    document.getElementById('summaryDue').textContent = formatNumber(grandTotal.due);
+
+    const breakdownContainer = document.getElementById('summaryByProperty');
+    breakdownContainer.innerHTML = '';
+    props.forEach(prop => {
+        const propData = byProperty[prop];
+        const propElement = document.createElement('div');
+        propElement.innerHTML = `
+            <h4>${propNames[prop]}</h4>
+            <div class="summary-grid">
+                <div class="summary-item"><strong>Ingresos:</strong> ${formatNumber(propData.total)}</div>
+                <div class="summary-item"><strong>Cobrado:</strong> ${formatNumber(propData.paid)}</div>
+                <div class="summary-item"><strong>Saldo:</strong> ${formatNumber(propData.due)}</div>
+            </div>
+        `;
+        breakdownContainer.appendChild(propElement);
+    });
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
+// =================================================================
 
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();

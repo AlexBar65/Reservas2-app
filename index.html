@@ -171,7 +171,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
-const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5'; // ID AÑADIDO
+const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
 let tokenClient;
@@ -183,8 +183,14 @@ const signoutBtn = document.getElementById('signoutBtn');
 
 // --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
-let reservas = [];
-let clientes = [];
+// =================================================================
+// =================== LÍNEAS CORREGIDAS ===========================
+// =================================================================
+let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
+let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
+// =================================================================
+// =================== FIN DE LA CORRECCIÓN ========================
+// =================================================================
 let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

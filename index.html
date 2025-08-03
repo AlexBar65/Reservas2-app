@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -121,6 +120,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
     <h4>Totales Generales</h4>
     <div class="summary-grid">
         <div class="summary-item"><strong>Ingresos Totales (ARS):</strong> <span id="summaryTotal">0</span></div>
+        <div class="summary-item"><strong>Ingresos Totales Netos (ARS):</strong> <span id="summaryTotalNet">0</span></div>
         <div class="summary-item"><strong>Total Cobrado (ARS):</strong> <span id="summaryPaid">0</span></div>
         <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
     </div>
@@ -228,6 +228,20 @@ const propNames = {
     beltran8: 'Beltrán 8º',
     directorio8: 'Directorio 8º'
 };
+// =================================================================
+// =================== NUEVA TABLA DE COMISIONES ===================
+// =================================================================
+const commissionRates = {
+    'AirBnB': 0.03,
+    'Booking': 0.15,
+    'Alquiler argentino': 0.15,
+    'Mercado Libre': 0,
+    'Para Irnos': 0,
+    'x Fuera': 0,
+    'Otra': 0
+};
+// =================================================================
+
 let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
 let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
 let highlightedIds = [];
@@ -407,42 +421,37 @@ async function handleDelete() {
     }
 }
 
-// =================================================================
-// =================== FUNCIÓN MODIFICADA ==========================
-// =================================================================
 function exportData() {
     if (!reservas.length) { 
         alert('No hay datos para exportar.'); 
         return; 
     }
     
-    // 1. Obtener la cotización del dólar desde el input
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
 
-    // 2. Definir el nuevo encabezado del CSV
-    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Estado,Notas';
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Estado,Notas';
     const csvRows = [csvHeader];
 
-    // 3. Procesar cada reserva para crear las filas del CSV
     reservas.forEach(r => {
-        // Crear la columna Periodo (AAAAMM)
         const checkInDate = new Date(r.checkIn + 'T00:00:00');
         const year = checkInDate.getFullYear();
         const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
         const periodo = `${year}${month}`;
 
-        let total = r.total;
-        let paid = r.paid;
-        let due = r.due;
+        let totalArs = r.total;
+        let paidArs = r.paid;
+        let dueArs = r.due;
 
-        // Convertir a pesos si la moneda es Dólares
         if (r.currency === 'Dolares') {
-            total *= exchangeRate;
-            paid *= exchangeRate;
-            due *= exchangeRate;
+            totalArs *= exchangeRate;
+            paidArs *= exchangeRate;
+            dueArs *= exchangeRate;
         }
+        
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const totalNet = totalArs - commission;
 
-        // Crear la fila con todos los datos
         const row = [
             r.id,
             propNames[r.property],
@@ -457,9 +466,10 @@ function exportData() {
             r.checkOut,
             r.platform || 'Otra',
             r.currency || 'Pesos Argentinos',
-            total.toFixed(2),
-            paid.toFixed(2),
-            due.toFixed(2),
+            totalArs.toFixed(2),
+            paidArs.toFixed(2),
+            dueArs.toFixed(2),
+            totalNet.toFixed(2),
             r.status,
             `"${(r.notes || '').replace(/"/g, '""')}"`
         ].join(',');
@@ -467,7 +477,6 @@ function exportData() {
         csvRows.push(row);
     });
 
-    // 4. Crear y descargar el archivo CSV
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -476,9 +485,6 @@ function exportData() {
     a.click();
     URL.revokeObjectURL(url);
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN MODIFICADA ================
-// =================================================================
 
 
 function handleClientAutocomplete() {
@@ -507,37 +513,47 @@ function formatNumber(num) {
     return Math.round(num).toLocaleString('es-AR');
 }
 
+// =================================================================
+// =================== FUNCIÓN MODIFICADA ==========================
+// =================================================================
 function calculateFinancialSummary() {
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const firstDayOfMonth = new Date(y, m, 1);
     const lastDayOfMonth = new Date(y, m + 1, 0);
 
-    let grandTotal = { total: 0, paid: 0, due: 0 };
+    let grandTotal = { total: 0, paid: 0, due: 0, net: 0 };
     const byProperty = {};
-    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, count: 0 }; });
+    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, count: 0 }; });
 
     reservas.filter(r => {
         const checkIn = new Date(r.checkIn + 'T00:00:00');
         return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled';
     }).forEach(r => {
         const rate = r.currency === 'Dolares' ? exchangeRate : 1;
-        const currentTotal = r.total * rate;
-        const currentPaid = r.paid * rate;
-        const currentDue = r.due * rate;
+        const totalArs = r.total * rate;
+        const paidArs = r.paid * rate;
+        const dueArs = r.due * rate;
+        
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const netArs = totalArs - commission;
 
-        grandTotal.total += currentTotal;
-        grandTotal.paid += currentPaid;
-        grandTotal.due += currentDue;
+        grandTotal.total += totalArs;
+        grandTotal.paid += paidArs;
+        grandTotal.due += dueArs;
+        grandTotal.net += netArs;
 
         if (byProperty[r.property]) {
-            byProperty[r.property].total += currentTotal;
-            byProperty[r.property].paid += currentPaid;
-            byProperty[r.property].due += currentDue;
+            byProperty[r.property].total += totalArs;
+            byProperty[r.property].paid += paidArs;
+            byProperty[r.property].due += dueArs;
+            byProperty[r.property].net += netArs;
             byProperty[r.property].count++;
         }
     });
 
     document.getElementById('summaryTotal').textContent = `$${formatNumber(grandTotal.total)}`;
+    document.getElementById('summaryTotalNet').textContent = `$${formatNumber(grandTotal.net)}`;
     document.getElementById('summaryPaid').textContent = `$${formatNumber(grandTotal.paid)}`;
     document.getElementById('summaryDue').textContent = `$${formatNumber(grandTotal.due)}`;
 
@@ -553,6 +569,7 @@ function calculateFinancialSummary() {
             propElement.innerHTML = `
                 <strong>${propNames[prop]} (${propData.count}):</strong>
                 <span>Ingresos: $${formatNumber(propData.total)}</span>
+                <span>Ingresos Netos: $${formatNumber(propData.net)}</span>
                 <span>Cobrado: $${formatNumber(propData.paid)}</span>
                 <span>Saldo: $${formatNumber(propData.due)}</span>
             `;
@@ -570,12 +587,16 @@ function calculateFinancialSummary() {
                     ${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}
                 </select>
                 <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span>
+                <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span>
                 <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span>
                 <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span>
             </div>
         `;
     }
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN MODIFICADA ================
+// =================================================================
 
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();
@@ -873,3 +894,5 @@ init();
 </script>
 </body>
 </html>
+
+

@@ -399,10 +399,15 @@ async function handleSave() {
         return;
     }
 
-    // --- Lógica de validación ---
+    // --- Lógica de validación mejorada ---
     const isOverlapping = reservas.some(existing => {
-        // Solo comparar con reservas de la misma propiedad y que no sean la que estamos editando
-        if (existing.property !== newReservation.property || existing.id === newReservation.id) {
+        // Ignorar la reserva si:
+        // 1. No es de la misma propiedad.
+        // 2. Es la misma reserva que estamos editando.
+        // 3. La reserva existente está cancelada.
+        if (existing.property !== newReservation.property || 
+            existing.id === newReservation.id || 
+            existing.status === 'cancelled') {
             return false;
         }
 
@@ -414,7 +419,7 @@ async function handleSave() {
     });
 
     if (isOverlapping) {
-        alert('Error: Las fechas seleccionadas se superponen con una reserva existente en este departamento. Por favor, revise el calendario.');
+        alert('Error: Las fechas seleccionadas se superponen con una reserva activa en este departamento. Por favor, revise el calendario.');
         return; // Detiene el proceso de guardado
     }
     // --- Fin de la lógica de validación ---

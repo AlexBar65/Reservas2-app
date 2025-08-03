@@ -424,6 +424,9 @@ function formatNumber(num) {
     return Math.round(num).toLocaleString('es-AR');
 }
 
+// =================================================================
+// =================== FUNCIÓN CORREGIDA ===========================
+// =================================================================
 function calculateFinancialSummary() {
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const firstDayOfMonth = new Date(y, m, 1);
@@ -461,9 +464,9 @@ function calculateFinancialSummary() {
     const breakdownContainer = document.getElementById('summaryByProperty');
     const showAll = document.getElementById('viewToggleCheckbox').checked;
     
-    breakdownContainer.innerHTML = '';
-
     if (showAll) {
+        // Si "Ver todos" está chequeado, mostramos la lista completa.
+        breakdownContainer.innerHTML = ''; 
         props.forEach(prop => {
             const propData = byProperty[prop];
             const propElement = document.createElement('div');
@@ -477,10 +480,14 @@ function calculateFinancialSummary() {
             breakdownContainer.appendChild(propElement);
         });
     } else {
+        // Si no, mostramos el menú desplegable.
+        // 1. Leemos el valor seleccionado ANTES de borrar el HTML.
         const summarySelect = document.getElementById('summaryPropSelect');
         const selectedProp = summarySelect ? summarySelect.value : props[0];
+        
         const propData = byProperty[selectedProp];
 
+        // 2. Ahora sí, borramos y volvemos a dibujar el HTML con la información correcta.
         breakdownContainer.innerHTML = `
             <div class="compact-view">
                 <select id="summaryPropSelect" onchange="calculateFinancialSummary()">
@@ -493,6 +500,9 @@ function calculateFinancialSummary() {
         `;
     }
 }
+// =================================================================
+// =================== FIN DE LA FUNCIÓN CORREGIDA =================
+// =================================================================
 
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();
@@ -637,9 +647,6 @@ async function save() {
     ]);
 }
 
-// =================================================================
-// =================== FUNCIÓN PRINCIPAL CORREGIDA =================
-// =================================================================
 async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
@@ -737,9 +744,6 @@ async function handleSave() {
         closeModal();
     }
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN CORREGIDA =================
-// =================================================================
 
 // --- INICIALIZACIÓN ---
 function init() {

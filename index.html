@@ -13,7 +13,8 @@ html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#
 .header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#2c3e50;color:#ecf0f1;padding:8px 12px}
 .property-btn{background:#34495e;color:#ecf0f1;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.9rem}
 .property-btn.active{background:#1abc9c}
-.action-btn{background:#2980b9;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.9rem}
+.action-btn{background:#2980b9;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:.9rem; transition: background-color 0.3s;}
+.action-btn:disabled { background: #7f8c8d; cursor: not-allowed; }
 .action-btn.secondary{background:#7f8c8d}
 .action-btn.danger{background:#c0392b}
 .month-nav{margin-left:auto;display:flex;gap:4px;align-items:center}
@@ -33,10 +34,10 @@ th:nth-child(5){background:#a0c1e8}
 th:nth-child(6){background:#b79ddb;color:#fff}
 th:nth-child(7){background:#cc8bc7;color:#fff}
 .date-number{font-weight:bold;font-size:.8rem}
-.event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word}
+.event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word; cursor: pointer;}
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
 .status-bonif{background-color:#a0e9ff;color:#000;}
-.currency-dolares { color: red !important; }
+.currency-dolares { color: red !important; font-weight: bold; }
 .hidden{display:none !important}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal-content{background:#fff;padding:18px;border-radius:6px;width:90%;max-width:600px;max-height:90vh;overflow:auto}
@@ -128,7 +129,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 <div id="modalOverlay" class="modal-overlay hidden">
   <div class="modal-content">
     <h2 id="modalTitle">Nueva reserva</h2>
-    <form id="reservationForm" class="reservation-form">
+    <form id="reservationForm" class="reservation-form" onsubmit="event.preventDefault(); handleSave();">
       <select id="propertySelect" required class="full-width">
         <option value="beltran4">Beltrán 4º</option>
         <option value="beltran8">Beltrán 8º</option>
@@ -174,9 +175,9 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
       
       <input type="hidden" id="reservationId" />
       <div class="modal-actions">
-        <button id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
-        <button class="action-btn secondary" onclick="closeModal()">Cerrar</button>
-        <button class="action-btn" onclick="handleSave()">Guardar</button>
+        <button type="button" id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
+        <button type="button" class="action-btn secondary" onclick="closeModal()">Cerrar</button>
+        <button type="submit" id="saveBtn" class="action-btn">Guardar</button>
       </div>
     </form>
   </div>
@@ -187,7 +188,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 
 // --- CONFIGURACIÓN ---
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
-const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
+const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU'; // ¡Considerar mover a un entorno más seguro!
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
@@ -238,7 +239,7 @@ function render(prop) {
             if (day) {
                 td.innerHTML = `<div class="date-number">${day.getDate()}</div>`;
                 const ds = day.toISOString().split('T')[0];
-                reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut)
+                reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled')
                     .forEach(r => {
                         const ev = document.createElement('div');
                         const platformInfo = r.platform || 'Otra';
@@ -248,7 +249,7 @@ function render(prop) {
                             ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`;
                         } else {
                             ev.className = `event status-${r.status}`;
-                            let currencyIndicator = r.currency === 'Dolares' ? ' (Dol)' : '';
+                            let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : '';
                             ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`;
                         }
 
@@ -292,8 +293,8 @@ function refreshList() {
     if (checkInsToday.length === 0 && checkOutsToday.length === 0) {
         todaySection.innerHTML += 'Sin movimientos';
     } else {
-        if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
-        if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
+        if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`;
+        if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`;
     }
     list.appendChild(todaySection);
     const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
@@ -303,8 +304,8 @@ function refreshList() {
     if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) {
         tomorrowSection.innerHTML += 'Sin movimientos';
     } else {
-        if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}<br>`;
-        if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${r.property})`).join(', ')}`;
+        if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`;
+        if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`;
     }
     list.appendChild(tomorrowSection);
 }
@@ -322,9 +323,9 @@ function openModal(pref) {
     document.getElementById('reservationId').value = '';
     document.getElementById('deleteBtn').classList.add('hidden');
     if (pref) {
-        propertySelect.value = pref.property;
-        checkInDate.value = pref.date;
-        checkOutDate.value = pref.date;
+        document.getElementById('propertySelect').value = pref.property;
+        document.getElementById('checkInDate').value = pref.date;
+        document.getElementById('checkOutDate').value = pref.date;
     }
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
     populateClientsDatalist();
@@ -336,52 +337,63 @@ function closeModal() { document.getElementById('modalOverlay').classList.add('h
 function openEdit(id) {
     const r = reservas.find(x => x.id === id);
     if (!r) return;
-    document.getElementById('reservationForm').reset();
-    populateClientsDatalist();
+    openModal(); // Reutilizamos openModal para resetear y mostrar
     
     document.getElementById('modalTitle').textContent = 'Editar reserva';
-    propertySelect.value = r.property;
-    guestName.value = r.guestName;
-    guestDni.value = r.guestDni || '';
-    guestEmail.value = r.guestEmail || '';
-    guestPhone1.value = r.guestPhone1 || '';
-    guestPhone2.value = r.guestPhone2 || '';
-    numGuests.value = r.numGuests;
-    checkInDate.value = r.checkIn;
-    checkOutDate.value = r.checkOut;
-    platformSelect.value = r.platform || 'Otra';
-    currencySelect.value = r.currency || 'Pesos Argentinos';
-    totalAmount.value = r.total;
-    paidAmount.value = r.paid;
-    statusSelect.value = r.status;
-    notes.value = r.notes || '';
-    reservationId.value = r.id;
+    document.getElementById('propertySelect').value = r.property;
+    document.getElementById('guestName').value = r.guestName;
+    document.getElementById('guestDni').value = r.guestDni || '';
+    document.getElementById('guestEmail').value = r.guestEmail || '';
+    document.getElementById('guestPhone1').value = r.guestPhone1 || '';
+    document.getElementById('guestPhone2').value = r.guestPhone2 || '';
+    document.getElementById('numGuests').value = r.numGuests;
+    document.getElementById('checkInDate').value = r.checkIn;
+    document.getElementById('checkOutDate').value = r.checkOut;
+    document.getElementById('platformSelect').value = r.platform || 'Otra';
+    document.getElementById('currencySelect').value = r.currency || 'Pesos Argentinos';
+    document.getElementById('totalAmount').value = r.total;
+    document.getElementById('paidAmount').value = r.paid;
+    document.getElementById('statusSelect').value = r.status;
+    document.getElementById('notes').value = r.notes || '';
+    document.getElementById('reservationId').value = r.id;
     
     calculateDueAmount();
     
     document.getElementById('deleteBtn').classList.remove('hidden');
-    document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
-function handleDelete() {
+async function handleDelete() {
     const id = document.getElementById('reservationId').value;
-    if (id && confirm('¿Eliminar la reserva?')) {
-        reservas = reservas.filter(r => r.id !== id);
-        save();
+    if (!id) return;
+
+    // Usamos una simple confirmación por ahora, se puede reemplazar por un modal custom.
+    if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+        return;
+    }
+
+    reservas = reservas.filter(r => r.id !== id);
+    
+    try {
+        await save();
+        console.log('Reserva eliminada y datos guardados.');
+    } catch (error) {
+        console.error('Error al guardar la eliminación:', error);
+        alert('No se pudo guardar la eliminación en la nube, pero se eliminó localmente.');
+    } finally {
         renderAll();
         closeModal();
     }
 }
 
 function exportData() {
-    if (!reservas.length) { alert('No hay datos'); return; }
+    if (!reservas.length) { alert('No hay datos para exportar.'); return; }
     const csv = ['ID,Propiedad,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total,Pago,IngresoPend,Estado,Notas'];
     reservas.forEach(r => csv.push([
-        r.id, r.property, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '',
+        r.id, propNames[r.property], r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '',
         r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos',
         r.total, r.paid, r.due, r.status, `"${(r.notes || '').replace(/"/g, '""')}"`
     ].join(',')));
-    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'reservas.csv'; a.click(); URL.revokeObjectURL(url);
 }
@@ -408,9 +420,6 @@ function populateClientsDatalist() {
     });
 }
 
-// =================================================================
-// ========= FUNCIÓN MODIFICADA PARA RESUMEN FINANCIERO ============
-// =================================================================
 function formatNumber(num) {
     return Math.round(num).toLocaleString('es-AR');
 }
@@ -422,7 +431,7 @@ function calculateFinancialSummary() {
 
     let grandTotal = { total: 0, paid: 0, due: 0 };
     const byProperty = {};
-    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0 }; });
+    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, count: 0 }; });
 
     reservas.filter(r => {
         const checkIn = new Date(r.checkIn + 'T00:00:00');
@@ -441,12 +450,13 @@ function calculateFinancialSummary() {
             byProperty[r.property].total += currentTotal;
             byProperty[r.property].paid += currentPaid;
             byProperty[r.property].due += currentDue;
+            byProperty[r.property].count++;
         }
     });
 
-    document.getElementById('summaryTotal').textContent = formatNumber(grandTotal.total);
-    document.getElementById('summaryPaid').textContent = formatNumber(grandTotal.paid);
-    document.getElementById('summaryDue').textContent = formatNumber(grandTotal.due);
+    document.getElementById('summaryTotal').textContent = `$${formatNumber(grandTotal.total)}`;
+    document.getElementById('summaryPaid').textContent = `$${formatNumber(grandTotal.paid)}`;
+    document.getElementById('summaryDue').textContent = `$${formatNumber(grandTotal.due)}`;
 
     const breakdownContainer = document.getElementById('summaryByProperty');
     const showAll = document.getElementById('viewToggleCheckbox').checked;
@@ -459,10 +469,10 @@ function calculateFinancialSummary() {
             const propElement = document.createElement('div');
             propElement.className = 'expanded-breakdown-item';
             propElement.innerHTML = `
-                <strong>${propNames[prop]}:</strong>
-                <span>Ingresos: ${formatNumber(propData.total)}</span>
-                <span>Cobrado: ${formatNumber(propData.paid)}</span>
-                <span>Saldo: ${formatNumber(propData.due)}</span>
+                <strong>${propNames[prop]} (${propData.count}):</strong>
+                <span>Ingresos: $${formatNumber(propData.total)}</span>
+                <span>Cobrado: $${formatNumber(propData.paid)}</span>
+                <span>Saldo: $${formatNumber(propData.due)}</span>
             `;
             breakdownContainer.appendChild(propElement);
         });
@@ -476,24 +486,34 @@ function calculateFinancialSummary() {
                 <select id="summaryPropSelect" onchange="calculateFinancialSummary()">
                     ${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}
                 </select>
-                <span><strong>Ingresos:</strong> ${formatNumber(propData.total)}</span>
-                <span><strong>Cobrado:</strong> ${formatNumber(propData.paid)}</span>
-                <span><strong>Saldo:</strong> ${formatNumber(propData.due)}</span>
+                <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span>
+                <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span>
+                <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span>
             </div>
         `;
     }
 }
-// =================================================================
-// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
-// =================================================================
 
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();
-    if (!query) return;
+    if (!query) {
+        clearSearch();
+        return;
+    }
     highlightedIds = reservas
         .filter(r => r.guestName.toLowerCase().includes(query))
         .map(r => r.id);
-    if(highlightedIds.length === 0) alert('No se encontraron reservas para ese huésped.');
+    if(highlightedIds.length === 0) {
+        alert('No se encontraron reservas para ese huésped.');
+    } else {
+        // Navega al mes de la primera reserva encontrada
+        const firstReservation = reservas.find(r => r.id === highlightedIds[0]);
+        if (firstReservation) {
+            const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00');
+            y = checkInDate.getFullYear();
+            m = checkInDate.getMonth();
+        }
+    }
     renderAll();
 }
 
@@ -561,11 +581,15 @@ function updateSigninStatus(isSignedIn) {
     }
 }
 
+async function loadData(fileId) {
+    const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+    let data = JSON.parse(response.body);
+    return Array.isArray(data) ? data : [];
+}
+
 async function loadReservasData() {
     try {
-        const response = await gapi.client.drive.files.get({ fileId: RESERVAS_FILE_ID, alt: 'media' });
-        let data = JSON.parse(response.body);
-        if (!Array.isArray(data)) data = [];
+        const data = await loadData(RESERVAS_FILE_ID);
         reservas = data.map(r => ({
             ...r,
             platform: r.platform || 'Otra',
@@ -573,32 +597,35 @@ async function loadReservasData() {
         }));
         localStorage.setItem('reservas', JSON.stringify(reservas));
         renderAll();
-    } catch (err) { console.error("Error al cargar reservas: ", err); }
+    } catch (err) { 
+        console.error("Error al cargar reservas desde Drive: ", err); 
+        alert("No se pudieron cargar las reservas desde Google Drive. Se usarán los datos locales si existen.");
+    }
 }
 
 async function loadClientsData() {
     try {
-        const response = await gapi.client.drive.files.get({ fileId: CLIENTS_FILE_ID, alt: 'media' });
-        let data = JSON.parse(response.body);
-        if (!Array.isArray(data)) data = [];
-        clientes = data;
+        clientes = await loadData(CLIENTS_FILE_ID);
         localStorage.setItem('clientes', JSON.stringify(clientes));
         populateClientsDatalist();
-    } catch (err) { console.error("Error al cargar clientes: ", err); }
+    } catch (err) { 
+        console.error("Error al cargar clientes desde Drive: ", err); 
+        alert("No se pudieron cargar los clientes desde Google Drive.");
+    }
 }
 
 async function saveData(fileId, data) {
-    if (gapi.client.getToken()) {
-        const content = JSON.stringify(data, null, 2);
-        try {
-            await gapi.client.request({
-                path: '/upload/drive/v3/files/' + fileId,
-                method: 'PATCH',
-                params: { uploadType: 'media' },
-                body: content,
-            });
-        } catch (err) { console.error("Error al guardar en Drive: ", err); }
+    if (!gapi.client.getToken()) {
+        console.warn("No autenticado. Guardando solo localmente.");
+        return;
     }
+    const content = JSON.stringify(data, null, 2);
+    await gapi.client.request({
+        path: '/upload/drive/v3/files/' + fileId,
+        method: 'PATCH',
+        params: { uploadType: 'media' },
+        body: content,
+    });
 }
 
 async function save() {
@@ -611,127 +638,143 @@ async function save() {
 }
 
 // =================================================================
-// =================== FUNCIÓN MODIFICADA ==========================
+// =================== FUNCIÓN PRINCIPAL CORREGIDA =================
 // =================================================================
 async function handleSave() {
-    const id = document.getElementById('reservationId').value;
-    const isNew = !id;
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando...';
 
-    calculateDueAmount();
+    try {
+        calculateDueAmount();
 
-    const newReservation = {
-        id: id || 'res-' + Math.random().toString(36).slice(2),
-        property: propertySelect.value,
-        guestName: guestName.value.trim(),
-        guestDni: guestDni.value.trim(),
-        guestEmail: guestEmail.value.trim(),
-        guestPhone1: guestPhone1.value.trim(),
-        guestPhone2: guestPhone2.value.trim(),
-        numGuests: +numGuests.value,
-        checkIn: checkInDate.value,
-        checkOut: checkOutDate.value,
-        platform: platformSelect.value,
-        currency: currencySelect.value,
-        total: +totalAmount.value,
-        paid: +paidAmount.value,
-        due: +dueAmount.value,
-        status: statusSelect.value,
-        notes: notes.value.trim()
-    };
+        const newReservation = {
+            id: document.getElementById('reservationId').value || 'res-' + Date.now(),
+            property: document.getElementById('propertySelect').value,
+            guestName: document.getElementById('guestName').value.trim(),
+            guestDni: document.getElementById('guestDni').value.trim(),
+            guestEmail: document.getElementById('guestEmail').value.trim(),
+            guestPhone1: document.getElementById('guestPhone1').value.trim(),
+            guestPhone2: document.getElementById('guestPhone2').value.trim(),
+            numGuests: +document.getElementById('numGuests').value,
+            checkIn: document.getElementById('checkInDate').value,
+            checkOut: document.getElementById('checkOutDate').value,
+            platform: document.getElementById('platformSelect').value,
+            currency: document.getElementById('currencySelect').value,
+            total: +document.getElementById('totalAmount').value,
+            paid: +document.getElementById('paidAmount').value,
+            due: +document.getElementById('dueAmount').value,
+            status: document.getElementById('statusSelect').value,
+            notes: document.getElementById('notes').value.trim()
+        };
 
-    if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
-        alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); return;
-    }
-    const today = new Date().toISOString().split('T')[0];
-    if (isNew && newReservation.checkIn < today) {
-        alert('No se puede crear una reserva con fecha de ingreso en el pasado.'); return;
-    }
-    if (new Date(newReservation.checkOut) < new Date(newReservation.checkIn)) {
-        alert('La fecha de egreso debe ser igual o posterior a la de ingreso.'); return;
-    }
-    if (newReservation.numGuests < 1) {
-        alert('La cantidad de personas debe ser al menos 1.'); return;
-    }
-    if (newReservation.total < 0 || newReservation.paid < 0) {
-        alert('Los montos no pueden ser negativos.'); return;
-    }
-    if (newReservation.paid > newReservation.total) {
-        alert('El monto pagado no puede ser mayor al monto total.'); return;
-    }
-    
-    if (isNew && newReservation.total === 0) {
-        newReservation.paid = 0; newReservation.due = 0; newReservation.status = 'paid';
-    } else if (!isNew && newReservation.total <= 0) {
-        alert('En una modificación, el monto total no puede ser cero o negativo.'); return;
-    }
-    
-    if (newReservation.paid >= newReservation.total && newReservation.status !== 'cancelled') {
-        newReservation.status = 'paid';
-    }
+        // --- Validaciones ---
+        if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
+            alert('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); return;
+        }
+        if (new Date(newReservation.checkOut) < new Date(newReservation.checkIn)) {
+            alert('La fecha de egreso debe ser igual o posterior a la de ingreso.'); return;
+        }
+        if (newReservation.paid > newReservation.total) {
+            alert('El monto pagado no puede ser mayor al monto total.'); return;
+        }
+        if (newReservation.paid >= newReservation.total && newReservation.status === 'pending') {
+            newReservation.status = 'paid';
+        }
+        
+        const newStart = new Date(newReservation.checkIn + 'T00:00:00');
+        const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
+        const isOverlapping = reservas.some(ex => 
+            ex.property === newReservation.property && 
+            ex.id !== newReservation.id && 
+            ex.status !== 'cancelled' && 
+            newStart <= new Date(ex.checkOut + 'T00:00:00') && 
+            new Date(ex.checkIn + 'T00:00:00') <= newEnd
+        );
+        if (isOverlapping) {
+            alert('Error: Las fechas se superponen con una reserva activa en el mismo departamento.'); return;
+        }
 
-    const newStart = new Date(newReservation.checkIn + 'T00:00:00');
-    const newEnd = new Date(newReservation.checkOut + 'T00:00:00');
-    if (reservas.some(ex => ex.property === newReservation.property && ex.id !== newReservation.id && ex.status !== 'cancelled' && newStart <= new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') <= newEnd)) {
-        alert('Error: Las fechas se superponen con una reserva activa.'); return;
+        // --- Actualización de datos en memoria ---
+        const resIndex = reservas.findIndex(x => x.id === newReservation.id);
+        if (resIndex > -1) { 
+            reservas[resIndex] = newReservation; 
+        } else { 
+            reservas.push(newReservation); 
+        }
+
+        const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === newReservation.guestName.toLowerCase());
+        if (clientIndex > -1) {
+            clientes[clientIndex] = { ...clientes[clientIndex],
+                dni: newReservation.guestDni, email: newReservation.guestEmail, 
+                phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
+            };
+        } else if (newReservation.guestName) {
+            clientes.push({
+                name: newReservation.guestName, dni: newReservation.guestDni, email: newReservation.guestEmail,
+                phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
+            });
+        }
+        
+        // --- Guardado persistente ---
+        await save();
+        console.log('Reserva guardada exitosamente.');
+
+        // Navegar al mes de la reserva guardada para feedback visual
+        const checkInDate = new Date(newReservation.checkIn + 'T00:00:00');
+        y = checkInDate.getFullYear();
+        m = checkInDate.getMonth();
+
+    } catch (error) {
+        console.error("Error al guardar la reserva:", error);
+        alert("Ocurrió un error al guardar la reserva en la nube. Los cambios se han guardado localmente.");
+    } finally {
+        // --- Esto se ejecuta SIEMPRE, con o sin errores ---
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar';
+        renderAll();
+        populateClientsDatalist();
+        closeModal();
     }
-
-    const resIndex = reservas.findIndex(x => x.id === newReservation.id);
-    if (resIndex > -1) { reservas[resIndex] = newReservation; } else { reservas.push(newReservation); }
-
-    const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === newReservation.guestName.toLowerCase());
-    if (clientIndex > -1) {
-        clientes[clientIndex] = { ...clientes[clientIndex], ...{
-            dni: newReservation.guestDni, email: newReservation.guestEmail, 
-            phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
-        }};
-    } else {
-        clientes.push({
-            name: newReservation.guestName, dni: newReservation.guestDni, email: newReservation.guestEmail,
-            phone1: newReservation.guestPhone1, phone2: newReservation.guestPhone2
-        });
-    }
-
-    await save();
-    
-    // Corrección: Navegar al mes de la reserva guardada
-    const checkInDate = new Date(newReservation.checkIn + 'T00:00:00');
-    y = checkInDate.getFullYear();
-    m = checkInDate.getMonth();
-
-    renderAll();
-    populateClientsDatalist();
-    closeModal();
 }
 // =================================================================
-// =================== FIN DE LA FUNCIÓN MODIFICADA ==================
+// =================== FIN DE LA FUNCIÓN CORREGIDA =================
 // =================================================================
 
 // --- INICIALIZACIÓN ---
-window.switchCalendar=switchCalendar;
-window.openModal=openModal;
-window.closeModal=closeModal;
-window.handleSave=handleSave;
-window.handleDelete=handleDelete;
-window.changeMonth=changeMonth;
-window.exportData = exportData;
-window.calculateDueAmount = calculateDueAmount; 
-window.handleClientAutocomplete = handleClientAutocomplete;
-window.handleSearch = handleSearch;
-window.clearSearch = clearSearch;
-window.calculateFinancialSummary = calculateFinancialSummary;
+function init() {
+    // Asignación de funciones al objeto window para que sean accesibles desde el HTML
+    window.switchCalendar = switchCalendar;
+    window.openModal = openModal;
+    window.closeModal = closeModal;
+    window.handleSave = handleSave;
+    window.handleDelete = handleDelete;
+    window.changeMonth = changeMonth;
+    window.exportData = exportData;
+    window.calculateDueAmount = calculateDueAmount;
+    window.handleClientAutocomplete = handleClientAutocomplete;
+    window.handleSearch = handleSearch;
+    window.clearSearch = clearSearch;
+    window.calculateFinancialSummary = calculateFinancialSummary;
+    window.openEdit = openEdit;
 
-function gapiLoadedWrapper() { gapiLoaded(); }
-function gisLoadedWrapper() { gisLoaded(); }
+    // Carga inicial de datos y renderizado
+    monthLabel();
+    renderAll();
+    switchCalendar('beltran4');
+    populateClientsDatalist();
 
-monthLabel();
-renderAll();
-switchCalendar('beltran4');
+    // Listeners para la carga de las APIs de Google
+    const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
+    gapiScript.onload = gapiLoaded;
+    const gisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    gisScript.onload = gisLoaded;
+}
 
-const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
-gapiScript.onload = gapiLoadedWrapper;
-const gisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-gisScript.onload = gisLoadedWrapper;
+init();
 
 </script>
 </body>
 </html>
+
+

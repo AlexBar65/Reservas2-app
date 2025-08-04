@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -71,7 +72,7 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
 .expenses-list .actions button { font-size: 0.8em; padding: 2px 5px; margin-right: 4px; }
 .expenses-summary-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
 .expenses-summary-table th, .expenses-summary-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
-.expenses-summary-table th { background-color: #f2f2f2; text-align: left; }
+.expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; } /* <-- CORRECCIÓN DE COLOR */
 .expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
 </style>
 </head>
@@ -110,6 +111,7 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
         <div class="summary-item"><strong>Ingresos Totales (ARS):</strong> <span id="summaryTotal">0</span></div>
         <div class="summary-item"><strong>Ingresos Totales Netos (ARS):</strong> <span id="summaryTotalNet">0</span></div>
         <div class="summary-item"><strong>Egresos Totales (ARS):</strong> <span id="summaryTotalExpenses">0</span></div>
+        <div class="summary-item"><strong>NIAT (ARS):</strong> <span id="summaryNiat">0</span></div>
         <div class="summary-item"><strong>Total Cobrado (ARS):</strong> <span id="summaryPaid">0</span></div>
         <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
     </div>
@@ -229,7 +231,7 @@ const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleuser
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
-const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0'; // <-- NUEVO ID
+const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
 let tokenClient, gapiInited = false, gisInited = false;
@@ -244,186 +246,53 @@ const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino':
 
 let reservas = JSON.parse(localStorage.getItem('reservas') || '[]');
 let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
-let gastos = JSON.parse(localStorage.getItem('gastos') || '[]'); // <-- NUEVO
+let gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
 let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- Lógica de Renderizado y UI ---
 function monthLabel() { document.getElementById('monthLabel').textContent = `${monthNames[m]} ${y}`; }
-function genGrid(Y, M) { /* ... (sin cambios) ... */ const first=new Date(Y,M,1), last=new Date(Y,M+1,0); const start=((first.getDay()+6)%7), days=last.getDate(), out=[]; let week=Array(7).fill(null),d=1; for(let i=0;i<7;i++){if(i>=start)week[i]=new Date(Y,M,d++);} out.push(week); while(d<=days){week=Array(7).fill(null);for(let i=0;i<7&&d<=days;i++)week[i]=new Date(Y,M,d++);out.push(week);} while(out.length<6)out.push(Array(7).fill(null)); return out; }
-function render(prop) { /* ... (sin cambios) ... */ const cont = document.getElementById('cal-' + prop); cont.innerHTML = ''; const tbl = document.createElement('table'); tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>'; const tbody = document.createElement('tbody'); genGrid(y, m).forEach(week => { const tr = document.createElement('tr'); week.forEach(day => { const td = document.createElement('td'); if (day) { td.innerHTML = `<div class="date-number">${day.getDate()}</div>`; const ds = day.toISOString().split('T')[0]; reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled') .forEach(r => { const ev = document.createElement('div'); const platformInfo = r.platform || 'Otra'; if (r.total === 0) { ev.className = 'event status-bonif'; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`; } else { ev.className = `event status-${r.status}`; let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : ''; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`; } if (r.currency === 'Dolares') ev.classList.add('currency-dolares'); if (highlightedIds.includes(r.id)) ev.classList.add('highlight'); ev.onclick = e => { e.stopPropagation(); openEdit(r.id); }; ev.title = r.notes || 'Sin notas adicionales'; td.appendChild(ev); }); td.onclick = () => openModal({ property: prop, date: ds }); } tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); cont.appendChild(tbl); }
+function genGrid(Y, M) { const first=new Date(Y,M,1), last=new Date(Y,M+1,0); const start=((first.getDay()+6)%7), days=last.getDate(), out=[]; let week=Array(7).fill(null),d=1; for(let i=0;i<7;i++){if(i>=start)week[i]=new Date(Y,M,d++);} out.push(week); while(d<=days){week=Array(7).fill(null);for(let i=0;i<7&&d<=days;i++)week[i]=new Date(Y,M,d++);out.push(week);} while(out.length<6)out.push(Array(7).fill(null)); return out; }
+function render(prop) { const cont = document.getElementById('cal-' + prop); cont.innerHTML = ''; const tbl = document.createElement('table'); tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>'; const tbody = document.createElement('tbody'); genGrid(y, m).forEach(week => { const tr = document.createElement('tr'); week.forEach(day => { const td = document.createElement('td'); if (day) { td.innerHTML = `<div class="date-number">${day.getDate()}</div>`; const ds = day.toISOString().split('T')[0]; reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled') .forEach(r => { const ev = document.createElement('div'); const platformInfo = r.platform || 'Otra'; if (r.total === 0) { ev.className = 'event status-bonif'; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`; } else { ev.className = `event status-${r.status}`; let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : ''; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`; } if (r.currency === 'Dolares') ev.classList.add('currency-dolares'); if (highlightedIds.includes(r.id)) ev.classList.add('highlight'); ev.onclick = e => { e.stopPropagation(); openEdit(r.id); }; ev.title = r.notes || 'Sin notas adicionales'; td.appendChild(ev); }); td.onclick = () => openModal({ property: prop, date: ds }); } tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); cont.appendChild(tbl); }
 function renderAll(){props.forEach(render);refreshList();monthLabel();calculateFinancialSummary();}
 function switchCalendar(p){props.forEach(pr=>{ document.getElementById('cal-'+pr).classList.toggle('hidden',pr!==p); document.getElementById(`btn${pr.charAt(0).toUpperCase() + pr.slice(1)}`).classList.toggle('active',pr===p);});}
 function changeMonth(delta){m+=delta;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}renderAll();}
-function refreshList() { /* ... (sin cambios) ... */ const list = document.getElementById('checkList'); list.innerHTML = ''; const today = new Date(); today.setHours(0,0,0,0); const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1); const yesterday = new Date(today); yesterday.setDate(today.getDate()-1); const todayStr = today.toISOString().split('T')[0]; const tomorrowStr = tomorrow.toISOString().split('T')[0]; const yesterdayStr = yesterday.toISOString().split('T')[0]; const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled'); const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled'); const todaySection = document.createElement('div'); todaySection.innerHTML = `<strong>Hoy (${todayStr})</strong><br>`; if (checkInsToday.length === 0 && checkOutsToday.length === 0) { todaySection.innerHTML += 'Sin movimientos'; } else { if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`; if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`; } list.appendChild(todaySection); const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled'); const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled'); const tomorrowSection = document.createElement('div'); tomorrowSection.innerHTML = `<br><strong>Mañana (${tomorrowStr})</strong><br>`; if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) { tomorrowSection.innerHTML += 'Sin movimientos'; } else { if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`; if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`; } list.appendChild(tomorrowSection); }
+function refreshList() { const list = document.getElementById('checkList'); list.innerHTML = ''; const today = new Date(); today.setHours(0,0,0,0); const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1); const yesterday = new Date(today); yesterday.setDate(today.getDate()-1); const todayStr = today.toISOString().split('T')[0]; const tomorrowStr = tomorrow.toISOString().split('T')[0]; const yesterdayStr = yesterday.toISOString().split('T')[0]; const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled'); const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled'); const todaySection = document.createElement('div'); todaySection.innerHTML = `<strong>Hoy (${todayStr})</strong><br>`; if (checkInsToday.length === 0 && checkOutsToday.length === 0) { todaySection.innerHTML += 'Sin movimientos'; } else { if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`; if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`; } list.appendChild(todaySection); const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled'); const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled'); const tomorrowSection = document.createElement('div'); tomorrowSection.innerHTML = `<br><strong>Mañana (${tomorrowStr})</strong><br>`; if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) { tomorrowSection.innerHTML += 'Sin movimientos'; } else { if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}<br>`; if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}`; } list.appendChild(tomorrowSection); }
 function calculateDueAmount() { const total = parseFloat(document.getElementById('totalAmount').value) || 0; const paid = parseFloat(document.getElementById('paidAmount').value) || 0; document.getElementById('dueAmount').value = (total - paid).toFixed(2); }
 function openModal(pref) { document.getElementById('modalOverlay').classList.remove('hidden'); document.getElementById('reservationForm').reset(); document.getElementById('reservationId').value = ''; document.getElementById('deleteBtn').classList.add('hidden'); if (pref) { document.getElementById('propertySelect').value = pref.property; document.getElementById('checkInDate').value = pref.date; document.getElementById('checkOutDate').value = pref.date; } document.getElementById('modalTitle').textContent = 'Nueva reserva'; populateClientsDatalist(); calculateDueAmount(); }
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
 function openEdit(id) { const r = reservas.find(x => x.id === id); if (!r) return; openModal(); document.getElementById('modalTitle').textContent = 'Editar reserva'; document.getElementById('propertySelect').value = r.property; document.getElementById('guestName').value = r.guestName; document.getElementById('guestDni').value = r.guestDni || ''; document.getElementById('guestEmail').value = r.guestEmail || ''; document.getElementById('guestPhone1').value = r.guestPhone1 || ''; document.getElementById('guestPhone2').value = r.guestPhone2 || ''; document.getElementById('numGuests').value = r.numGuests; document.getElementById('checkInDate').value = r.checkIn; document.getElementById('checkOutDate').value = r.checkOut; document.getElementById('platformSelect').value = r.platform || 'Otra'; document.getElementById('currencySelect').value = r.currency || 'Pesos Argentinos'; document.getElementById('totalAmount').value = r.total; document.getElementById('paidAmount').value = r.paid; document.getElementById('statusSelect').value = r.status; document.getElementById('notes').value = r.notes || ''; document.getElementById('reservationId').value = r.id; calculateDueAmount(); document.getElementById('deleteBtn').classList.remove('hidden'); }
 function formatNumber(num) { return Math.round(num).toLocaleString('es-AR'); }
-function handleSearch() { /* ... (sin cambios) ... */ const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } highlightedIds = reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = reservas.find(r => r.id === highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); y = checkInDate.getFullYear(); m = checkInDate.getMonth(); } } renderAll(); }
+function handleSearch() { const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } highlightedIds = reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = reservas.find(r => r.id === highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); y = checkInDate.getFullYear(); m = checkInDate.getMonth(); } } renderAll(); }
 function clearSearch() { document.getElementById('searchInput').value = ''; highlightedIds = []; renderAll(); }
 function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
 function handleClientAutocomplete() { const name = document.getElementById('guestName').value; const client = clientes.find(c => c.name.toLowerCase() === name.toLowerCase()); if (client) { document.getElementById('guestDni').value = client.dni || ''; document.getElementById('guestEmail').value = client.email || ''; document.getElementById('guestPhone1').value = client.phone1 || ''; document.getElementById('guestPhone2').value = client.phone2 || ''; } }
 
 // --- Lógica de Datos (Guardado/Carga) ---
-async function handleSave() { /* ... (sin cambios) ... */ const saveBtn = document.getElementById('saveBtn'); saveBtn.disabled = true; saveBtn.textContent = 'Guardando...'; const originalReservas = JSON.parse(JSON.stringify(reservas)); const originalClientes = JSON.parse(JSON.stringify(clientes)); try { calculateDueAmount(); const reservationId = document.getElementById('reservationId').value; const isEditing = !!reservationId; const formData = { id: reservationId || 'res-' + Date.now(), property: document.getElementById('propertySelect').value, guestName: document.getElementById('guestName').value.trim(), guestDni: document.getElementById('guestDni').value.trim(), guestEmail: document.getElementById('guestEmail').value.trim(), guestPhone1: document.getElementById('guestPhone1').value.trim(), guestPhone2: document.getElementById('guestPhone2').value.trim(), numGuests: +document.getElementById('numGuests').value, checkIn: document.getElementById('checkInDate').value, checkOut: document.getElementById('checkOutDate').value, platform: document.getElementById('platformSelect').value, currency: document.getElementById('currencySelect').value, total: +document.getElementById('totalAmount').value, paid: +document.getElementById('paidAmount').value, due: +document.getElementById('dueAmount').value, status: document.getElementById('statusSelect').value, notes: document.getElementById('notes').value.trim() }; if (!formData.guestName || !formData.checkIn || !formData.checkOut) { throw new Error('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); } if (new Date(formData.checkOut) < new Date(formData.checkIn)) { throw new Error('La fecha de egreso debe ser igual o posterior a la de ingreso.'); } if (formData.paid > formData.total) { throw new Error('El monto pagado no puede ser mayor al monto total.'); } if (formData.paid >= formData.total && formData.status === 'pending') { formData.status = 'paid'; } const newStart = new Date(formData.checkIn + 'T00:00:00'); const newEnd = new Date(formData.checkOut + 'T00:00:00'); const isOverlapping = reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd ); if (isOverlapping) { throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.'); } const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1; if (resIndex > -1) { reservas[resIndex] = formData; } else { reservas.push(formData); } let clientIndex = -1; if (isEditing) { const originalReservation = originalReservas.find(r => r.id === reservationId); if (originalReservation) { clientIndex = clientes.findIndex(c => c.name.toLowerCase() === originalReservation.guestName.toLowerCase()); } } else { clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase()); } if (clientIndex > -1) { clientes[clientIndex] = { ...clientes[clientIndex], ...{name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2} }; } else if (formData.guestName) { clientes.push({ name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2 }); } await save(); console.log('Reserva guardada exitosamente en la nube.'); const checkInDate = new Date(formData.checkIn + 'T00:00:00'); y = checkInDate.getFullYear(); m = checkInDate.getMonth(); closeModal(); } catch (error) { console.error("Error al guardar la reserva:", error); alert(`FALLO AL GUARDAR: ${error.message}. Los cambios no se guardaron. Por favor, revise los datos o inicie sesión de nuevo.`); reservas = originalReservas; clientes = originalClientes; } finally { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; renderAll(); populateClientsDatalist(); } }
-async function handleDelete() { /* ... (sin cambios) ... */ const id = document.getElementById('reservationId').value; if (!id) return; if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) { return; } const originalReservas = [...reservas]; reservas = reservas.filter(r => r.id !== id); try { await save(); console.log('Reserva eliminada y datos guardados en la nube.'); } catch (error) { reservas = originalReservas; console.error('Error al guardar la eliminación:', error); alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`); } finally { renderAll(); closeModal(); } }
+async function handleSave() { const saveBtn = document.getElementById('saveBtn'); saveBtn.disabled = true; saveBtn.textContent = 'Guardando...'; const originalReservas = JSON.parse(JSON.stringify(reservas)); const originalClientes = JSON.parse(JSON.stringify(clientes)); try { calculateDueAmount(); const reservationId = document.getElementById('reservationId').value; const isEditing = !!reservationId; const formData = { id: reservationId || 'res-' + Date.now(), property: document.getElementById('propertySelect').value, guestName: document.getElementById('guestName').value.trim(), guestDni: document.getElementById('guestDni').value.trim(), guestEmail: document.getElementById('guestEmail').value.trim(), guestPhone1: document.getElementById('guestPhone1').value.trim(), guestPhone2: document.getElementById('guestPhone2').value.trim(), numGuests: +document.getElementById('numGuests').value, checkIn: document.getElementById('checkInDate').value, checkOut: document.getElementById('checkOutDate').value, platform: document.getElementById('platformSelect').value, currency: document.getElementById('currencySelect').value, total: +document.getElementById('totalAmount').value, paid: +document.getElementById('paidAmount').value, due: +document.getElementById('dueAmount').value, status: document.getElementById('statusSelect').value, notes: document.getElementById('notes').value.trim() }; if (!formData.guestName || !formData.checkIn || !formData.checkOut) { throw new Error('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); } if (new Date(formData.checkOut) < new Date(formData.checkIn)) { throw new Error('La fecha de egreso debe ser igual o posterior a la de ingreso.'); } if (formData.paid > formData.total) { throw new Error('El monto pagado no puede ser mayor al monto total.'); } if (formData.paid >= formData.total && formData.status === 'pending') { formData.status = 'paid'; } const newStart = new Date(formData.checkIn + 'T00:00:00'); const newEnd = new Date(formData.checkOut + 'T00:00:00'); const isOverlapping = reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd ); if (isOverlapping) { throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.'); } const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1; if (resIndex > -1) { reservas[resIndex] = formData; } else { reservas.push(formData); } let clientIndex = -1; if (isEditing) { const originalReservation = originalReservas.find(r => r.id === reservationId); if (originalReservation) { clientIndex = clientes.findIndex(c => c.name.toLowerCase() === originalReservation.guestName.toLowerCase()); } } else { clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase()); } if (clientIndex > -1) { clientes[clientIndex] = { ...clientes[clientIndex], ...{name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2} }; } else if (formData.guestName) { clientes.push({ name: formData.guestName, dni: formData.guestDni, email: formData.guestEmail, phone1: formData.guestPhone1, phone2: formData.guestPhone2 }); } await save(); console.log('Reserva guardada exitosamente en la nube.'); const checkInDate = new Date(formData.checkIn + 'T00:00:00'); y = checkInDate.getFullYear(); m = checkInDate.getMonth(); closeModal(); } catch (error) { console.error("Error al guardar la reserva:", error); alert(`FALLO AL GUARDAR: ${error.message}. Los cambios no se guardaron. Por favor, revise los datos o inicie sesión de nuevo.`); reservas = originalReservas; clientes = originalClientes; } finally { saveBtn.disabled = false; saveBtn.textContent = 'Guardar'; renderAll(); populateClientsDatalist(); } }
+async function handleDelete() { const id = document.getElementById('reservationId').value; if (!id) return; if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) { return; } const originalReservas = [...reservas]; reservas = reservas.filter(r => r.id !== id); try { await save(); console.log('Reserva eliminada y datos guardados en la nube.'); } catch (error) { reservas = originalReservas; console.error('Error al guardar la eliminación:', error); alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`); } finally { renderAll(); closeModal(); } }
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
     localStorage.setItem('clientes', JSON.stringify(clientes));
-    localStorage.setItem('gastos', JSON.stringify(gastos)); // <-- NUEVO
+    localStorage.setItem('gastos', JSON.stringify(gastos));
     await Promise.all([
         saveData(RESERVAS_FILE_ID, reservas),
         saveData(CLIENTS_FILE_ID, clientes),
-        saveData(GASTOS_FILE_ID, gastos) // <-- NUEVO
+        saveData(GASTOS_FILE_ID, gastos)
     ]);
 }
 
 // --- Lógica de Módulo de Gastos ---
-function openExpensesABM() {
-    const modal = document.getElementById('expensesAbmModal');
-    const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
-    document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[m]} ${y}`;
-    document.getElementById('expPeriodo').value = periodo;
-    populateExpensesFormDropdowns();
-    renderExpensesList(periodo);
-    modal.classList.remove('hidden');
-}
+function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[m]} ${y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
 function closeExpensesABM() { document.getElementById('expensesAbmModal').classList.add('hidden'); }
-function populateExpensesFormDropdowns() {
-    const deptoSelect = document.getElementById('expDepto');
-    deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join('');
-    const typeSelect = document.getElementById('expType');
-    typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join('');
-}
-function renderExpensesList(periodo) {
-    const tbody = document.querySelector('#expensesTable tbody');
-    tbody.innerHTML = '';
-    gastos.filter(g => g.periodo === periodo).forEach(g => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${propNames[g.departamento] || g.departamento}</td>
-            <td>${g.tipoGasto}</td>
-            <td>$${formatNumber(g.monto)}</td>
-            <td class="actions">
-                <button onclick="handleEditGasto('${g.id}')">Editar</button>
-                <button onclick="handleDeleteGasto('${g.id}')">X</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-function resetExpensesForm() {
-    document.getElementById('expensesForm').reset();
-    document.getElementById('expenseId').value = '';
-    const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
-    document.getElementById('expPeriodo').value = periodo;
-}
-async function handleSaveGasto() {
-    const gastoData = {
-        id: document.getElementById('expenseId').value || `gasto-${Date.now()}`,
-        periodo: document.getElementById('expPeriodo').value,
-        departamento: document.getElementById('expDepto').value,
-        tipoGasto: document.getElementById('expType').value,
-        monto: parseFloat(document.getElementById('expAmount').value)
-    };
-    if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) {
-        alert('Por favor, complete todos los campos del gasto con valores válidos.');
-        return;
-    }
-    const index = gastos.findIndex(g => g.id === gastoData.id);
-    if (index > -1) {
-        gastos[index] = gastoData;
-    } else {
-        gastos.push(gastoData);
-    }
-    try {
-        await save();
-        renderExpensesList(gastoData.periodo);
-        resetExpensesForm();
-        calculateFinancialSummary(); // Actualizar resumen en la pantalla principal
-    } catch (error) {
-        alert(`FALLO AL GUARDAR GASTO: ${error.message}`);
-    }
-}
-function handleEditGasto(id) {
-    const gasto = gastos.find(g => g.id === id);
-    if (!gasto) return;
-    document.getElementById('expenseId').value = gasto.id;
-    document.getElementById('expPeriodo').value = gasto.periodo;
-    document.getElementById('expDepto').value = gasto.departamento;
-    document.getElementById('expType').value = gasto.tipoGasto;
-    document.getElementById('expAmount').value = gasto.monto;
-}
-async function handleDeleteGasto(id) {
-    if (!confirm('¿Está seguro de que desea eliminar este gasto?')) return;
-    gastos = gastos.filter(g => g.id !== id);
-    try {
-        await save();
-        const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
-        renderExpensesList(periodo);
-        calculateFinancialSummary();
-    } catch (error) {
-        alert(`FALLO AL ELIMINAR GASTO: ${error.message}`);
-    }
-}
-function openExpensesVisual() {
-    const modal = document.getElementById('expensesVisualModal');
-    const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
-    document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[m]} ${y}`;
-    
-    const summary = {};
-    expenseTypes.forEach(type => {
-        summary[type] = {};
-        props.forEach(prop => summary[type][prop] = 0);
-    });
-
-    gastos.filter(g => g.periodo === periodo).forEach(g => {
-        if (summary[g.tipoGasto]) {
-            summary[g.tipoGasto][g.departamento] += g.monto;
-        }
-    });
-
-    const table = document.getElementById('expensesSummaryTable');
-    table.innerHTML = '';
-    
-    let thead = '<thead><tr><th>Tipo de Gasto</th>';
-    props.forEach(p => thead += `<th>${propNames[p]}</th>`);
-    thead += '<th>Total por Tipo</th></tr></thead>';
-    table.innerHTML += thead;
-
-    let tbody = '<tbody>';
-    const totalsByType = {};
-    expenseTypes.forEach(type => {
-        let rowTotal = 0;
-        let rowHtml = `<tr><th>${type}</th>`;
-        props.forEach(prop => {
-            const amount = summary[type][prop] || 0;
-            rowHtml += `<td>$${formatNumber(amount)}</td>`;
-            rowTotal += amount;
-        });
-        rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`;
-        tbody += rowHtml;
-        totalsByType[type] = rowTotal;
-    });
-    tbody += '</tbody>';
-    table.innerHTML += tbody;
-
-    let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>';
-    let grandTotal = 0;
-    props.forEach(prop => {
-        let colTotal = 0;
-        expenseTypes.forEach(type => colTotal += summary[type][prop] || 0);
-        tfoot += `<td>$${formatNumber(colTotal)}</td>`;
-        grandTotal += colTotal;
-    });
-    tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`;
-    table.innerHTML += tfoot;
-
-    modal.classList.remove('hidden');
-}
+function populateExpensesFormDropdowns() { const deptoSelect = document.getElementById('expDepto'); deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join(''); const typeSelect = document.getElementById('expType'); typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join(''); }
+function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
+function resetExpensesForm() { document.getElementById('expensesForm').reset(); document.getElementById('expenseId').value = ''; const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expPeriodo').value = periodo; }
+async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value) }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos.'); return; } const index = gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { gastos[index] = gastoData; } else { gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); resetExpensesForm(); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
+function handleEditGasto(id) { const gasto = gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; }
+async function handleDeleteGasto(id) { if (!confirm('¿Está seguro de que desea eliminar este gasto?')) return; gastos = gastos.filter(g => g.id !== id); try { await save(); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
+function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[m]} ${y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
 // --- Lógica Financiera y Exportación ---
@@ -433,9 +302,9 @@ function calculateFinancialSummary() {
     const firstDayOfMonth = new Date(y, m, 1);
     const lastDayOfMonth = new Date(y, m + 1, 0);
 
-    let grandTotal = { total: 0, paid: 0, due: 0, net: 0, expenses: 0 };
+    let grandTotal = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0 };
     const byProperty = {};
-    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, count: 0 }; });
+    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0, count: 0 }; });
 
     // Calcular Ingresos
     reservas.filter(r => { const checkIn = new Date(r.checkIn + 'T00:00:00'); return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled'; })
@@ -459,10 +328,18 @@ function calculateFinancialSummary() {
             byProperty[g.departamento].expenses += g.monto;
         }
     });
+    
+    // Calcular NIAT
+    grandTotal.niat = grandTotal.net - grandTotal.expenses;
+    props.forEach(prop => {
+        byProperty[prop].niat = byProperty[prop].net - byProperty[prop].expenses;
+    });
 
+    // Actualizar UI
     document.getElementById('summaryTotal').textContent = `$${formatNumber(grandTotal.total)}`;
     document.getElementById('summaryTotalNet').textContent = `$${formatNumber(grandTotal.net)}`;
     document.getElementById('summaryTotalExpenses').textContent = `$${formatNumber(grandTotal.expenses)}`;
+    document.getElementById('summaryNiat').textContent = `$${formatNumber(grandTotal.niat)}`;
     document.getElementById('summaryPaid').textContent = `$${formatNumber(grandTotal.paid)}`;
     document.getElementById('summaryDue').textContent = `$${formatNumber(grandTotal.due)}`;
 
@@ -475,17 +352,40 @@ function calculateFinancialSummary() {
             const propData = byProperty[prop];
             const propElement = document.createElement('div');
             propElement.className = 'expanded-breakdown-item';
-            propElement.innerHTML = `<strong>${propNames[prop]} (${propData.count}):</strong> <span>Ingresos: $${formatNumber(propData.total)}</span> <span>Ingresos Netos: $${formatNumber(propData.net)}</span> <span>Egresos: $${formatNumber(propData.expenses)}</span> <span>Cobrado: $${formatNumber(propData.paid)}</span> <span>Saldo: $${formatNumber(propData.due)}</span>`;
+            propElement.innerHTML = `<strong>${propNames[prop]} (${propData.count}):</strong> <span>Ingresos: $${formatNumber(propData.total)}</span> <span>Ingresos Netos: $${formatNumber(propData.net)}</span> <span>Egresos: $${formatNumber(propData.expenses)}</span> <span>NIAT: $${formatNumber(propData.niat)}</span> <span>Cobrado: $${formatNumber(propData.paid)}</span> <span>Saldo: $${formatNumber(propData.due)}</span>`;
             breakdownContainer.appendChild(propElement);
         });
     } else {
         const summarySelect = document.getElementById('summaryPropSelect');
         const selectedProp = summarySelect ? summarySelect.value : props[0];
         const propData = byProperty[selectedProp];
-        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary()">${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
+        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary()">${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
     }
 }
-function exportData() { /* ... (código anterior modificado para incluir Total Neto) ... */ if (!reservas.length) { alert('No hay datos para exportar.'); return; } const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1; const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Estado,Notas'; const csvRows = [csvHeader]; reservas.forEach(r => { const checkInDate = new Date(r.checkIn + 'T00:00:00'); const year = checkInDate.getFullYear(); const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0'); const periodo = `${year}${month}`; let totalArs = r.total; let paidArs = r.paid; let dueArs = r.due; if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; } const commissionRate = commissionRates[r.platform] || 0; const commission = totalArs * commissionRate; const totalNet = totalArs - commission; const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(','); csvRows.push(row); }); const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'reservas_export.csv'; a.click(); URL.revokeObjectURL(url); }
+function exportData() {
+    if (!reservas.length) { alert('No hay datos para exportar.'); return; }
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
+    const csvRows = [csvHeader];
+    reservas.forEach(r => {
+        const checkInDate = new Date(r.checkIn + 'T00:00:00');
+        const year = checkInDate.getFullYear();
+        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
+        const periodo = `${year}${month}`;
+        let totalArs = r.total;
+        let paidArs = r.paid;
+        let dueArs = r.due;
+        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const totalNet = totalArs - commission;
+        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
+        csvRows.push(row);
+    });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'reservas_export.csv'; a.click(); URL.revokeObjectURL(url);
+}
 
 // --- Lógica de Autenticación de Google ---
 function gapiLoaded() { gapi.load('client', initializeGapiClient); }
@@ -517,5 +417,3 @@ init();
 </script>
 </body>
 </html>
-
-

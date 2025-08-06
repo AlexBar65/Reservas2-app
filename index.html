@@ -171,7 +171,6 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
           <p style="margin: 0 0 5px 0; font-weight: bold;">Foto actual:</p>
           <img id="photoPreview" src="" alt="Foto del cliente" style="max-width: 150px; max-height: 150px; border-radius: 4px; border: 1px solid #ddd;">
           <a id="photoPreviewLink" href="#" target="_blank" style="display: block; margin-top: 5px; font-size: 0.9em;">Ver en tamaño completo</a>
-          <!-- NUEVO: Botón para borrar la foto -->
           <button type="button" id="deletePhotoBtn" class="action-btn danger hidden" onclick="handleDeletePhoto()" style="margin-top: 10px; font-size: 0.8em; padding: 4px 8px;">Borrar Foto</button>
       </div>
 
@@ -427,7 +426,6 @@ function clearPhotoPreview() {
     document.getElementById('guestPhoto').value = '';
 }
 
-// NUEVO: Función para marcar la foto para eliminación
 function handleDeletePhoto() {
     if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen no se borrará de Google Drive.')) {
         return;
@@ -454,6 +452,7 @@ async function uploadPhoto(file) {
     form.append('file', file);
 
     try {
+        // Step 1: Upload the file
         const response = await gapi.client.request({
             path: '/upload/drive/v3/files',
             method: 'POST',
@@ -461,13 +460,27 @@ async function uploadPhoto(file) {
             body: form
         });
         
+        const fileId = response.result.id;
+        console.log(`Archivo subido con ID: ${fileId}. Esperando 1 segundo para establecer permisos...`);
+
+        // Step 2: Wait for 1 second to prevent race condition
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Step 3: Set public permissions
+        console.log('Estableciendo permisos públicos...');
         await gapi.client.drive.permissions.create({
-            fileId: response.result.id,
-            resource: { 'role': 'reader', 'type': 'anyone' }
+            fileId: fileId,
+            resource: {
+                'role': 'reader',
+                'type': 'anyone'
+            }
         });
-        return response.result.id;
+        
+        console.log('Permisos establecidos. Subida exitosa.');
+        return fileId;
+
     } catch (error) {
-        console.error('Error al subir la foto a Drive:', error);
+        console.error('Error durante el proceso de subida a Drive:', error);
         throw new Error(`Fallo al subir la foto a Drive: ${error.result?.error?.message || error.message}`);
     }
 }
@@ -735,4 +748,4 @@ function init() {
 init();
 </script>
 </body>
-</html>
+</ht

@@ -276,6 +276,7 @@ let clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
 let gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
 let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
+let currentSummaryProp = props[0]; // Variable de estado para el depto seleccionado
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- Lógica de Renderizado y UI ---
@@ -702,6 +703,10 @@ function closeExpensesVisual() { document.getElementById('expensesVisualModal').
 
 // --- Lógica Financiera y Exportación ---
 function calculateFinancialSummary(selectedPropOverride = null) {
+    if (selectedPropOverride) {
+        currentSummaryProp = selectedPropOverride;
+    }
+
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const currentPeriodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
     const firstDayOfMonth = new Date(y, m, 1);
@@ -757,12 +762,8 @@ function calculateFinancialSummary(selectedPropOverride = null) {
             breakdownContainer.appendChild(propElement);
         });
     } else {
-        // Leer el valor del dropdown ANTES de sobreescribir el HTML
-        const summarySelect = document.getElementById('summaryPropSelect');
-        const selectedProp = selectedPropOverride || (summarySelect ? summarySelect.value : props[0]);
-        const propData = byProperty[selectedProp];
-        // Ahora sobreescribir el HTML, preservando la selección
-        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
+        const propData = byProperty[currentSummaryProp];
+        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === currentSummaryProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
     }
 }
 function exportData() {

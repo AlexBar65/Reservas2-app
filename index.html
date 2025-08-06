@@ -74,7 +74,7 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
 .expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; }
 .expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
 
-/* NUEVO: Estilos para la miniatura de la foto en la lista */
+/* Estilos para la miniatura de la foto en la lista */
 .photo-link { display: inline-block; vertical-align: middle; }
 .list-thumbnail {
   width: 28px;
@@ -297,7 +297,6 @@ function refreshList() {
 
     const generateHtmlForItem = (reservation) => {
         const client = clientes.find(c => c.name.toLowerCase() === reservation.guestName.toLowerCase());
-        // MODIFICADO: Muestra una miniatura de la imagen en lugar de un emoji
         const photoLink = client && client.photoId
             ? `<a href="https://drive.google.com/uc?id=${client.photoId}" target="_blank" class="photo-link" title="Ver foto del cliente"><img src="https://drive.google.com/uc?id=${client.photoId}" class="list-thumbnail" alt="Foto"></a>`
             : '';
@@ -503,7 +502,6 @@ async function uploadPhoto(file) {
     }
 }
 
-// NUEVO: Función para borrar un archivo de Google Drive
 async function deletePhotoFromDrive(fileId) {
     if (!fileId) return;
     console.log(`Intentando eliminar el archivo de Drive con ID: ${fileId}`);
@@ -514,7 +512,6 @@ async function deletePhotoFromDrive(fileId) {
         console.log(`Archivo ${fileId} eliminado exitosamente de Google Drive.`);
     } catch (error) {
         console.error(`No se pudo eliminar el archivo ${fileId} de Drive. Puede que ya no exista o haya un problema de permisos.`, error);
-        // No lanzamos un error al usuario, solo lo registramos, ya que la operación principal (actualizar el JSON) fue exitosa.
     }
 }
 
@@ -572,10 +569,9 @@ async function handleSave() {
         const existingClient = clientIndex > -1 ? clientes[clientIndex] : null;
         const shouldDeletePhoto = document.getElementById('photoPreviewContainer').dataset.deletePhoto === 'true';
         
-        // MODIFICADO: Lógica para manejar el borrado de la foto física
         let photoIdToDelete = null;
         if (shouldDeletePhoto && existingClient && existingClient.photoId) {
-            photoIdToDelete = existingClient.photoId; // Guardamos el ID para borrarlo después
+            photoIdToDelete = existingClient.photoId;
         }
         
         let finalPhotoId;
@@ -606,7 +602,6 @@ async function handleSave() {
         
         await save();
         
-        // MODIFICADO: Borramos la foto de Drive DESPUÉS de guardar los cambios en los JSON
         if (photoIdToDelete) {
             await deletePhotoFromDrive(photoIdToDelete);
         }
@@ -627,7 +622,53 @@ async function handleSave() {
         populateClientsDatalist();
     }
 }
-async function handleDelete() { const id = document.getElementById('reservationId').value; if (!id) return; if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) { return; } const originalReservas = [...reservas]; reservas = reservas.filter(r => r.id !== id); try { await save(); } catch (error) { reservas = originalReservas; console.error('Error al guardar la eliminación:', error); alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`); } finally { renderAll(); closeModal(); } }
+
+async function handleDelete() {
+    const id = document.getElementById('reservationId').value;
+    if (!id) return;
+    if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+        return;
+    }
+
+    const originalReservas = [...reservas];
+    const reservationToDelete = reservas.find(r => r.id === id);
+    let photoIdToDelete = null;
+
+    if (reservationToDelete) {
+        const guestName = reservationToDelete.guestName;
+        // Comprobar si hay OTRAS reservas para el mismo huésped
+        const otherReservations = reservas.some(r => r.id !== id && r.guestName.toLowerCase() === guestName.toLowerCase());
+        
+        if (!otherReservations) {
+            // Si no hay otras reservas, marcamos la foto para su eliminación
+            const client = clientes.find(c => c.name.toLowerCase() === guestName.toLowerCase());
+            if (client && client.photoId) {
+                photoIdToDelete = client.photoId;
+            }
+        }
+    }
+
+    reservas = reservas.filter(r => r.id !== id);
+
+    try {
+        await save();
+        console.log('Reserva eliminada y datos guardados en la nube.');
+        
+        // Si se marcó una foto para eliminar, la borramos de Drive
+        if (photoIdToDelete) {
+            await deletePhotoFromDrive(photoIdToDelete);
+        }
+
+    } catch (error) {
+        reservas = originalReservas;
+        console.error('Error al guardar la eliminación:', error);
+        alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
+    } finally {
+        renderAll();
+        closeModal();
+    }
+}
+
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
     localStorage.setItem('clientes', JSON.stringify(clientes));
@@ -795,4 +836,3 @@ init();
 </script>
 </body>
 </html>
-

@@ -626,45 +626,52 @@ async function handleSave() {
 
 async function handleDelete() {
     const id = document.getElementById('reservationId').value;
-    if (!id) return;
-    if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+    if (!id || !window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
         return;
     }
 
     const originalReservas = [...reservas];
     const originalClientes = JSON.parse(JSON.stringify(clientes));
+
     const reservationToDelete = reservas.find(r => r.id === id);
+    if (!reservationToDelete) return; // Salida temprana si no se encuentra
+
+    // 1. Actualizar la lista de reservas en memoria
+    reservas = reservas.filter(r => r.id !== id);
+
+    const guestName = reservationToDelete.guestName;
     let photoIdToDelete = null;
 
-    if (reservationToDelete) {
-        const guestName = reservationToDelete.guestName;
-        const otherReservations = reservas.some(r => r.id !== id && r.guestName.toLowerCase() === guestName.toLowerCase());
-        
-        if (!otherReservations) {
-            const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
-            if (clientIndex > -1 && clientes[clientIndex].photoId) {
-                photoIdToDelete = clientes[clientIndex].photoId;
-                clientes[clientIndex].photoId = null; // Eliminar la referencia del JSON
-            }
+    // 2. Comprobar si quedan más reservas para este huésped
+    const hasMoreReservations = reservas.some(r => r.guestName.toLowerCase() === guestName.toLowerCase());
+
+    // 3. Si no quedan más reservas, eliminar la referencia de la foto
+    if (!hasMoreReservations) {
+        const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
+        if (clientIndex > -1 && clientes[clientIndex].photoId) {
+            photoIdToDelete = clientes[clientIndex].photoId;
+            clientes[clientIndex].photoId = null; // Eliminar la referencia del JSON
         }
     }
 
-    reservas = reservas.filter(r => r.id !== id);
-
     try {
+        // 4. Guardar los cambios en la nube
         await save();
         console.log('Reserva eliminada y datos guardados en la nube.');
         
+        // 5. Si todo se guardó bien, eliminar el archivo de la foto de Drive
         if (photoIdToDelete) {
             await deletePhotoFromDrive(photoIdToDelete);
         }
 
     } catch (error) {
+        // 6. Si algo falla, revertir todos los cambios en memoria
         reservas = originalReservas;
         clientes = originalClientes;
         console.error('Error al guardar la eliminación:', error);
         alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
     } finally {
+        // 7. Renderizar la UI y cerrar el modal
         renderAll();
         closeModal();
     }
@@ -694,7 +701,7 @@ function openExpensesVisual() { const modal = document.getElementById('expensesV
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
 // --- Lógica Financiera y Exportación ---
-function calculateFinancialSummary() {
+function calculateFinancialSummary(selectedPropOverride = null) {
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const currentPeriodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
     const firstDayOfMonth = new Date(y, m, 1);
@@ -751,9 +758,9 @@ function calculateFinancialSummary() {
         });
     } else {
         const summarySelect = document.getElementById('summaryPropSelect');
-        const selectedProp = summarySelect ? summarySelect.value : props[0];
+        const selectedProp = selectedPropOverride || (summarySelect ? summarySelect.value : props[0]);
         const propData = byProperty[selectedProp];
-        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary()">${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
+        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === selectedProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
     }
 }
 function exportData() {

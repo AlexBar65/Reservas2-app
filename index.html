@@ -162,16 +162,17 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
       <input id="guestPhone1" placeholder="Teléfono 1" />
       <input id="guestPhone2" placeholder="Teléfono 2" />
       
-      <!-- NUEVO: Campo para subir foto -->
       <div class="full-width">
         <label for="guestPhoto" style="display: block; margin-bottom: 5px;">Foto del cliente (JPG/PNG, opcional)</label>
         <input type="file" id="guestPhoto" accept="image/jpeg, image/png" style="width:100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
       </div>
-      <!-- NUEVO: Contenedor para la vista previa de la foto -->
-      <div id="photoPreviewContainer" class="full-width hidden" style="text-align: center; margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;">
+      
+      <div id="photoPreviewContainer" class="full-width hidden" style="text-align: center; margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;" data-delete-photo="false">
           <p style="margin: 0 0 5px 0; font-weight: bold;">Foto actual:</p>
           <img id="photoPreview" src="" alt="Foto del cliente" style="max-width: 150px; max-height: 150px; border-radius: 4px; border: 1px solid #ddd;">
           <a id="photoPreviewLink" href="#" target="_blank" style="display: block; margin-top: 5px; font-size: 0.9em;">Ver en tamaño completo</a>
+          <!-- NUEVO: Botón para borrar la foto -->
+          <button type="button" id="deletePhotoBtn" class="action-btn danger hidden" onclick="handleDeletePhoto()" style="margin-top: 10px; font-size: 0.8em; padding: 4px 8px;">Borrar Foto</button>
       </div>
 
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
@@ -253,7 +254,6 @@ const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
-// ¡IMPORTANTE! Pega aquí el ID de tu carpeta de Google Drive.
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
@@ -339,7 +339,8 @@ function openModal(pref) {
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
     populateClientsDatalist();
     calculateDueAmount();
-    clearPhotoPreview(); // Limpiar vista previa de foto
+    clearPhotoPreview();
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag de borrado
 }
 
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
@@ -368,7 +369,7 @@ function openEdit(id) {
     calculateDueAmount();
     document.getElementById('deleteBtn').classList.remove('hidden');
     
-    // Mostrar foto del cliente si existe
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag
     const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
     if (client && client.photoId) {
         showPhotoPreview(client.photoId);
@@ -385,19 +386,18 @@ function populateClientsDatalist() { const datalist = document.getElementById('c
 function handleClientAutocomplete() {
     const name = document.getElementById('guestName').value;
     const client = clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag
     if (client) {
         document.getElementById('guestDni').value = client.dni || '';
         document.getElementById('guestEmail').value = client.email || '';
         document.getElementById('guestPhone1').value = client.phone1 || '';
         document.getElementById('guestPhone2').value = client.phone2 || '';
-        // Mostrar foto si existe
         if (client.photoId) {
             showPhotoPreview(client.photoId);
         } else {
             clearPhotoPreview();
         }
     } else {
-        // Si no se encuentra el cliente (es nuevo), limpiar la vista previa
         clearPhotoPreview();
     }
 }
@@ -405,8 +405,10 @@ function handleClientAutocomplete() {
 // --- Lógica de Fotos ---
 function showPhotoPreview(photoId) {
     const container = document.getElementById('photoPreviewContainer');
+    const deleteBtn = document.getElementById('deletePhotoBtn');
     if (!photoId) {
         container.classList.add('hidden');
+        deleteBtn.classList.add('hidden');
         return;
     }
     const img = document.getElementById('photoPreview');
@@ -416,19 +418,30 @@ function showPhotoPreview(photoId) {
     img.src = viewUrl;
     link.href = viewUrl;
     container.classList.remove('hidden');
+    deleteBtn.classList.remove('hidden');
 }
 
 function clearPhotoPreview() {
     document.getElementById('photoPreviewContainer').classList.add('hidden');
-    document.getElementById('guestPhoto').value = ''; // Limpiar el input de archivo
+    document.getElementById('deletePhotoBtn').classList.add('hidden');
+    document.getElementById('guestPhoto').value = '';
+}
+
+// NUEVO: Función para marcar la foto para eliminación
+function handleDeletePhoto() {
+    if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen no se borrará de Google Drive.')) {
+        return;
+    }
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'true';
+    clearPhotoPreview();
 }
 
 async function uploadPhoto(file) {
     if (!gapi.client.getToken()) {
-        throw new Error("No autenticado. Inicie sesión con Google para subir fotos.");
+        throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
     }
     if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
-        throw new Error("ID de la carpeta de fotos no configurado. Revise las instrucciones y actualice el código.");
+        throw new Error("ID de la carpeta de fotos no configurado. Contacte al desarrollador.");
     }
 
     const metadata = {
@@ -448,13 +461,9 @@ async function uploadPhoto(file) {
             body: form
         });
         
-        // Hacer el archivo público para que se pueda ver sin iniciar sesión en esa cuenta
         await gapi.client.drive.permissions.create({
             fileId: response.result.id,
-            resource: {
-                'role': 'reader',
-                'type': 'anyone'
-            }
+            resource: { 'role': 'reader', 'type': 'anyone' }
         });
         return response.result.id;
     } catch (error) {
@@ -495,16 +504,12 @@ async function handleSave() {
             notes: document.getElementById('notes').value.trim()
         };
 
-        // 1. Subir nueva foto si se seleccionó una
         const photoInput = document.getElementById('guestPhoto');
         let newPhotoId = null;
         if (photoInput.files.length > 0) {
-            console.log('Subiendo nueva foto...');
             newPhotoId = await uploadPhoto(photoInput.files[0]);
-            console.log('Foto subida con ID:', newPhotoId);
         }
 
-        // Validaciones
         if (!formData.guestName || !formData.checkIn || !formData.checkOut) { throw new Error('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); }
         if (new Date(formData.checkOut) < new Date(formData.checkIn)) { throw new Error('La fecha de egreso debe ser igual o posterior a la de ingreso.'); }
         if (formData.paid > formData.total) { throw new Error('El monto pagado no puede ser mayor al monto total.'); }
@@ -513,14 +518,23 @@ async function handleSave() {
         const isOverlapping = reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd );
         if (isOverlapping) { throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.'); }
 
-        // 2. Actualizar la reserva
         const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1;
         if (resIndex > -1) { reservas[resIndex] = formData; } else { reservas.push(formData); }
 
-        // 3. Actualizar o crear el cliente CON LA FOTO
         let clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
         const existingClient = clientIndex > -1 ? clientes[clientIndex] : null;
-        const finalPhotoId = newPhotoId || (existingClient ? existingClient.photoId : null);
+        const shouldDeletePhoto = document.getElementById('photoPreviewContainer').dataset.deletePhoto === 'true';
+        
+        let finalPhotoId;
+        if (newPhotoId) {
+            finalPhotoId = newPhotoId;
+        } else if (shouldDeletePhoto) {
+            finalPhotoId = null;
+        } else if (existingClient) {
+            finalPhotoId = existingClient.photoId;
+        } else {
+            finalPhotoId = null;
+        }
 
         const clientData = {
             name: formData.guestName,
@@ -538,7 +552,6 @@ async function handleSave() {
         }
         
         await save();
-        console.log('Reserva guardada exitosamente en la nube.');
         const checkInDate = new Date(formData.checkIn + 'T00:00:00');
         y = checkInDate.getFullYear();
         m = checkInDate.getMonth();
@@ -555,7 +568,7 @@ async function handleSave() {
         populateClientsDatalist();
     }
 }
-async function handleDelete() { const id = document.getElementById('reservationId').value; if (!id) return; if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) { return; } const originalReservas = [...reservas]; reservas = reservas.filter(r => r.id !== id); try { await save(); console.log('Reserva eliminada y datos guardados en la nube.'); } catch (error) { reservas = originalReservas; console.error('Error al guardar la eliminación:', error); alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`); } finally { renderAll(); closeModal(); } }
+async function handleDelete() { const id = document.getElementById('reservationId').value; if (!id) return; if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) { return; } const originalReservas = [...reservas]; reservas = reservas.filter(r => r.id !== id); try { await save(); } catch (error) { reservas = originalReservas; console.error('Error al guardar la eliminación:', error); alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`); } finally { renderAll(); closeModal(); } }
 async function save() {
     localStorage.setItem('reservas', JSON.stringify(reservas));
     localStorage.setItem('clientes', JSON.stringify(clientes));
@@ -575,7 +588,7 @@ function renderExpensesList(periodo) { const tbody = document.querySelector('#ex
 function resetExpensesForm() { document.getElementById('expensesForm').reset(); document.getElementById('expenseId').value = ''; const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expPeriodo').value = periodo; }
 async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value) }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos.'); return; } const index = gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { gastos[index] = gastoData; } else { gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); resetExpensesForm(); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
 function handleEditGasto(id) { const gasto = gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; }
-async function handleDeleteGasto(id) { if (!confirm('¿Está seguro de que desea eliminar este gasto?')) return; gastos = gastos.filter(g => g.id !== id); try { await save(); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
+async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; gastos = gastos.filter(g => g.id !== id); try { await save(); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
 function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[m]} ${y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
@@ -590,7 +603,6 @@ function calculateFinancialSummary() {
     const byProperty = {};
     props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0, count: 0 }; });
 
-    // Calcular Ingresos
     reservas.filter(r => { const checkIn = new Date(r.checkIn + 'T00:00:00'); return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled'; })
     .forEach(r => {
         const rate = r.currency === 'Dolares' ? exchangeRate : 1;
@@ -605,7 +617,6 @@ function calculateFinancialSummary() {
         }
     });
 
-    // Calcular Egresos
     gastos.filter(g => g.periodo === currentPeriodo).forEach(g => {
         grandTotal.expenses += g.monto;
         if (byProperty[g.departamento]) {
@@ -613,13 +624,11 @@ function calculateFinancialSummary() {
         }
     });
     
-    // Calcular NIAT
     grandTotal.niat = grandTotal.net - grandTotal.expenses;
     props.forEach(prop => {
         byProperty[prop].niat = byProperty[prop].net - byProperty[prop].expenses;
     });
 
-    // Actualizar UI
     document.getElementById('summaryTotal').textContent = `$${formatNumber(grandTotal.total)}`;
     document.getElementById('summaryTotalNet').textContent = `$${formatNumber(grandTotal.net)}`;
     document.getElementById('summaryTotalExpenses').textContent = `$${formatNumber(grandTotal.expenses)}`;
@@ -715,6 +724,7 @@ function init() {
     window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.exportData = exportData; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
     window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
     window.sendWhatsAppSummary = sendWhatsAppSummary;
+    window.handleDeletePhoto = handleDeletePhoto; // Registrar la nueva función
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

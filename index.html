@@ -636,11 +636,9 @@ async function handleDelete() {
 
     if (reservationToDelete) {
         const guestName = reservationToDelete.guestName;
-        // Comprobar si hay OTRAS reservas para el mismo huésped
         const otherReservations = reservas.some(r => r.id !== id && r.guestName.toLowerCase() === guestName.toLowerCase());
         
         if (!otherReservations) {
-            // Si no hay otras reservas, marcamos la foto para su eliminación
             const client = clientes.find(c => c.name.toLowerCase() === guestName.toLowerCase());
             if (client && client.photoId) {
                 photoIdToDelete = client.photoId;
@@ -654,7 +652,6 @@ async function handleDelete() {
         await save();
         console.log('Reserva eliminada y datos guardados en la nube.');
         
-        // Si se marcó una foto para eliminar, la borramos de Drive
         if (photoIdToDelete) {
             await deletePhotoFromDrive(photoIdToDelete);
         }
@@ -836,3 +833,4 @@ init();
 </script>
 </body>
 </html>
+

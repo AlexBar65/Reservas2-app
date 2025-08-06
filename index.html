@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -73,7 +74,6 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
 .expenses-summary-table th, .expenses-summary-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
 .expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; }
 .expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
-/* NUEVO: Estilo para el enlace de la foto */
 .photo-link{
   display: inline-block;
   margin-left: 5px;
@@ -339,7 +339,7 @@ function openModal(pref) {
     populateClientsDatalist();
     calculateDueAmount();
     clearPhotoPreview();
-    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag de borrado
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
 }
 
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
@@ -347,7 +347,7 @@ function closeModal() { document.getElementById('modalOverlay').classList.add('h
 function openEdit(id) {
     const r = reservas.find(x => x.id === id);
     if (!r) return;
-    openModal(); // Llama a openModal para resetear y mostrar
+    openModal();
     document.getElementById('modalTitle').textContent = 'Editar reserva';
     document.getElementById('propertySelect').value = r.property;
     document.getElementById('guestName').value = r.guestName;
@@ -368,7 +368,7 @@ function openEdit(id) {
     calculateDueAmount();
     document.getElementById('deleteBtn').classList.remove('hidden');
     
-    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
     if (client && client.photoId) {
         showPhotoPreview(client.photoId);
@@ -385,7 +385,7 @@ function populateClientsDatalist() { const datalist = document.getElementById('c
 function handleClientAutocomplete() {
     const name = document.getElementById('guestName').value;
     const client = clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
-    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false'; // Resetear flag
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     if (client) {
         document.getElementById('guestDni').value = client.dni || '';
         document.getElementById('guestEmail').value = client.email || '';
@@ -434,6 +434,12 @@ function handleDeletePhoto() {
     clearPhotoPreview();
 }
 
+/**
+ * Subir una foto a Google Drive de forma robusta en 3 pasos:
+ * 1. Crear metadatos del archivo para asegurar su ubicación.
+ * 2. Subir el contenido del archivo.
+ * 3. Establecer los permisos para que sea público.
+ */
 async function uploadPhoto(file) {
     if (!gapi.client.getToken()) {
         throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
@@ -442,32 +448,37 @@ async function uploadPhoto(file) {
         throw new Error("ID de la carpeta de fotos no configurado. Contacte al desarrollador.");
     }
 
-    const metadata = {
-        'name': `${Date.now()}_${file.name}`,
-        'parents': [CLIENT_PHOTOS_FOLDER_ID]
-    };
-
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', file);
-
     try {
-        // Step 1: Upload the file
-        const response = await gapi.client.request({
-            path: '/upload/drive/v3/files',
-            method: 'POST',
-            params: { uploadType: 'multipart' },
-            body: form
+        // Paso 1: Crear metadatos del archivo primero para asegurar que esté en la carpeta correcta.
+        const fileMetadata = {
+            'name': `${Date.now()}_${file.name}`,
+            'parents': [CLIENT_PHOTOS_FOLDER_ID]
+        };
+
+        console.log('Paso 1: Creando metadatos del archivo en Drive...');
+        const fileCreateResponse = await gapi.client.drive.files.create({
+            resource: fileMetadata,
+            fields: 'id'
         });
-        
-        const fileId = response.result.id;
-        console.log(`Archivo subido con ID: ${fileId}. Esperando 1 segundo para establecer permisos...`);
 
-        // Step 2: Wait for 1 second to prevent race condition
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fileId = fileCreateResponse.result.id;
+        console.log(`Paso 1 Exitoso. ID del archivo: ${fileId}. Subiendo contenido...`);
 
-        // Step 3: Set public permissions
-        console.log('Estableciendo permisos públicos...');
+        // Paso 2: Actualizar el archivo con el contenido real.
+        await gapi.client.request({
+            path: `/upload/drive/v3/files/${fileId}`,
+            method: 'PATCH',
+            params: {
+                uploadType: 'media'
+            },
+            headers: {
+                'Content-Type': file.type
+            },
+            body: file
+        });
+        console.log('Paso 2 Exitoso. Contenido del archivo subido. Estableciendo permisos...');
+
+        // Paso 3: Establecer permisos públicos.
         await gapi.client.drive.permissions.create({
             fileId: fileId,
             resource: {
@@ -475,15 +486,17 @@ async function uploadPhoto(file) {
                 'type': 'anyone'
             }
         });
-        
-        console.log('Permisos establecidos. Subida exitosa.');
+
+        console.log('Paso 3 Exitoso. Permisos establecidos. Subida completada.');
         return fileId;
 
     } catch (error) {
         console.error('Error durante el proceso de subida a Drive:', error);
-        throw new Error(`Fallo al subir la foto a Drive: ${error.result?.error?.message || error.message}`);
+        const errorMessage = error.result?.error?.message || error.message || 'Error desconocido.';
+        throw new Error(`Fallo al subir la foto a Drive: ${errorMessage}`);
     }
 }
+
 
 // --- Lógica de Datos (Guardado/Carga) ---
 async function handleSave() {
@@ -737,7 +750,7 @@ function init() {
     window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.exportData = exportData; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
     window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
     window.sendWhatsAppSummary = sendWhatsAppSummary;
-    window.handleDeletePhoto = handleDeletePhoto; // Registrar la nueva función
+    window.handleDeletePhoto = handleDeletePhoto;
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

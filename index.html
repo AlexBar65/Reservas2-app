@@ -73,12 +73,18 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
 .expenses-summary-table th, .expenses-summary-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
 .expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; }
 .expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
-.photo-link{
-  display: inline-block;
-  margin-left: 5px;
-  text-decoration: none;
-  font-size: 1.1rem;
+
+/* NUEVO: Estilos para la miniatura de la foto en la lista */
+.photo-link { display: inline-block; vertical-align: middle; }
+.list-thumbnail {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
   vertical-align: middle;
+  border: 1px solid #ccc;
+  margin-left: 6px;
+  background-color: #fff;
 }
 </style>
 </head>
@@ -291,8 +297,9 @@ function refreshList() {
 
     const generateHtmlForItem = (reservation) => {
         const client = clientes.find(c => c.name.toLowerCase() === reservation.guestName.toLowerCase());
+        // MODIFICADO: Muestra una miniatura de la imagen en lugar de un emoji
         const photoLink = client && client.photoId
-            ? `<a href="https://drive.google.com/uc?id=${client.photoId}" target="_blank" class="photo-link" title="Ver foto del cliente">📸</a>`
+            ? `<a href="https://drive.google.com/uc?id=${client.photoId}" target="_blank" class="photo-link" title="Ver foto del cliente"><img src="https://drive.google.com/uc?id=${client.photoId}" class="list-thumbnail" alt="Foto"></a>`
             : '';
         return `${reservation.guestName} (${propNames[reservation.property]})${photoLink}`;
     };
@@ -426,7 +433,7 @@ function clearPhotoPreview() {
 }
 
 function handleDeletePhoto() {
-    if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen no se borrará de Google Drive.')) {
+    if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen se borrará de Google Drive.')) {
         return;
     }
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'true';
@@ -452,7 +459,6 @@ async function uploadPhoto(file) {
         };
 
         // Paso 1: Iniciar la sesión de subida reanudable
-        console.log('Paso 1: Iniciando subida reanudable...');
         const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
             method: 'POST',
             headers: {
@@ -462,23 +468,15 @@ async function uploadPhoto(file) {
             body: JSON.stringify(metadata)
         });
 
-        if (!initResponse.ok) {
-            throw new Error('No se pudo iniciar la sesión de subida a Drive.');
-        }
-
+        if (!initResponse.ok) throw new Error('No se pudo iniciar la sesión de subida a Drive.');
+        
         const locationUrl = initResponse.headers.get('Location');
-        if (!locationUrl) {
-            throw new Error('No se recibió la URL de subida de Drive.');
-        }
-        console.log('Paso 1 Exitoso. URL de subida obtenida.');
+        if (!locationUrl) throw new Error('No se recibió la URL de subida de Drive.');
 
         // Paso 2: Subir el contenido del archivo a la URL de la sesión
-        console.log('Paso 2: Subiendo el contenido del archivo...');
         const uploadResponse = await fetch(locationUrl, {
             method: 'PUT',
-            headers: {
-                'Content-Range': `bytes 0-${file.size - 1}/${file.size}`
-            },
+            headers: { 'Content-Range': `bytes 0-${file.size - 1}/${file.size}` },
             body: file
         });
 
@@ -489,25 +487,34 @@ async function uploadPhoto(file) {
 
         const result = await uploadResponse.json();
         const fileId = result.id;
-        console.log(`Paso 2 Exitoso. Archivo subido con ID: ${fileId}.`);
 
         // Paso 3: Establecer permisos públicos.
-        console.log('Paso 3: Estableciendo permisos públicos...');
         await gapi.client.drive.permissions.create({
             fileId: fileId,
-            resource: {
-                'role': 'reader',
-                'type': 'anyone'
-            }
+            resource: { 'role': 'reader', 'type': 'anyone' }
         });
 
-        console.log('Paso 3 Exitoso. Permisos establecidos. Subida completada.');
+        console.log('Subida completada. ID del archivo:', fileId);
         return fileId;
 
     } catch (error) {
         console.error('Error durante el proceso de subida a Drive:', error);
-        const errorMessage = error.message || JSON.stringify(error);
-        throw new Error(`Fallo al subir la foto a Drive: ${errorMessage}`);
+        throw new Error(`Fallo al subir la foto a Drive: ${error.message}`);
+    }
+}
+
+// NUEVO: Función para borrar un archivo de Google Drive
+async function deletePhotoFromDrive(fileId) {
+    if (!fileId) return;
+    console.log(`Intentando eliminar el archivo de Drive con ID: ${fileId}`);
+    try {
+        await gapi.client.drive.files.delete({
+            fileId: fileId
+        });
+        console.log(`Archivo ${fileId} eliminado exitosamente de Google Drive.`);
+    } catch (error) {
+        console.error(`No se pudo eliminar el archivo ${fileId} de Drive. Puede que ya no exista o haya un problema de permisos.`, error);
+        // No lanzamos un error al usuario, solo lo registramos, ya que la operación principal (actualizar el JSON) fue exitosa.
     }
 }
 
@@ -565,6 +572,12 @@ async function handleSave() {
         const existingClient = clientIndex > -1 ? clientes[clientIndex] : null;
         const shouldDeletePhoto = document.getElementById('photoPreviewContainer').dataset.deletePhoto === 'true';
         
+        // MODIFICADO: Lógica para manejar el borrado de la foto física
+        let photoIdToDelete = null;
+        if (shouldDeletePhoto && existingClient && existingClient.photoId) {
+            photoIdToDelete = existingClient.photoId; // Guardamos el ID para borrarlo después
+        }
+        
         let finalPhotoId;
         if (newPhotoId) {
             finalPhotoId = newPhotoId;
@@ -592,6 +605,12 @@ async function handleSave() {
         }
         
         await save();
+        
+        // MODIFICADO: Borramos la foto de Drive DESPUÉS de guardar los cambios en los JSON
+        if (photoIdToDelete) {
+            await deletePhotoFromDrive(photoIdToDelete);
+        }
+
         const checkInDate = new Date(formData.checkIn + 'T00:00:00');
         y = checkInDate.getFullYear();
         m = checkInDate.getMonth();

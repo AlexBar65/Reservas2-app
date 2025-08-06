@@ -632,6 +632,7 @@ async function handleDelete() {
     }
 
     const originalReservas = [...reservas];
+    const originalClientes = JSON.parse(JSON.stringify(clientes));
     const reservationToDelete = reservas.find(r => r.id === id);
     let photoIdToDelete = null;
 
@@ -640,9 +641,10 @@ async function handleDelete() {
         const otherReservations = reservas.some(r => r.id !== id && r.guestName.toLowerCase() === guestName.toLowerCase());
         
         if (!otherReservations) {
-            const client = clientes.find(c => c.name.toLowerCase() === guestName.toLowerCase());
-            if (client && client.photoId) {
-                photoIdToDelete = client.photoId;
+            const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
+            if (clientIndex > -1 && clientes[clientIndex].photoId) {
+                photoIdToDelete = clientes[clientIndex].photoId;
+                clientes[clientIndex].photoId = null; // Eliminar la referencia del JSON
             }
         }
     }
@@ -659,6 +661,7 @@ async function handleDelete() {
 
     } catch (error) {
         reservas = originalReservas;
+        clientes = originalClientes;
         console.error('Error al guardar la eliminación:', error);
         alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
     } finally {

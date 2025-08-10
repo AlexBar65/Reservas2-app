@@ -88,12 +88,11 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
   background-color: #fff;
 }
 
-/* --- Añadido mínimo: fecha + hora inline --- */
+/* --- Añadido: fecha + hora inline (mínimo) --- */
 .inline-datetime { display: flex; gap: 6px; align-items: center; }
 .inline-datetime input[type="date"] { max-width: 160px; }
 .inline-datetime select { width: auto; padding: 4px; }
 .inline-datetime .time-sep { font-weight: bold; }
-
 </style>
 </head>
 <body>
@@ -198,8 +197,7 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
       <div class="inline-datetime">
   <input id="checkInDate" type="date" required />
-  <select id="checkInHour">
-    <option value="">HH</option>
+  <select id="checkInHour"><option value="">HH</option>
     <option value="00">00</option>
     <option value="01">01</option>
     <option value="02">02</option>
@@ -224,10 +222,8 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
     <option value="21">21</option>
     <option value="22">22</option>
     <option value="23">23</option>
-  </select>
-  <span class="time-sep">:</span>
-  <select id="checkInMinute">
-    <option value="">MM</option>
+  </select><span class="time-sep">:</span>
+  <select id="checkInMinute"><option value="">MM</option>
     <option value="00">00</option>
     <option value="01">01</option>
     <option value="02">02</option>
@@ -480,9 +476,11 @@ function openEdit(id) {
     document.getElementById('guestPhone1').value = r.guestPhone1 || '';
     document.getElementById('guestPhone2').value = r.guestPhone2 || '';
     document.getElementById('numGuests').value = r.numGuests;
-    (function(){ const el=document.getElementById('parkingSelect'); if(el) el.value = (r.parking==='S'||r.parking==='N')?r.parking:''; })();
+    try { const el=document.getElementById('parkingSelect'); if(el) el.value=(r.parking==='S'||r.parking==='N')?r.parking:''; } catch(e) {}
+
     document.getElementById('checkInDate').value = r.checkIn;
-    (function(){ const ct=(r.checkInTime||''); const p=ct.split(':'); const hh=document.getElementById('checkInHour'); const mm=document.getElementById('checkInMinute'); if(hh&&mm){ hh.value=p[0]||''; mm.value=p[1]||''; }})();
+    try { const ct=(r.checkInTime||''); const p=ct.split(':'); const hh=document.getElementById('checkInHour'); const mm=document.getElementById('checkInMinute'); if(hh&&mm){ hh.value=p[0]||''; mm.value=p[1]||''; } } catch(e) {}
+
     document.getElementById('checkOutDate').value = r.checkOut;
     document.getElementById('platformSelect').value = r.platform || 'Otra';
     document.getElementById('currencySelect').value = r.currency || 'Pesos Argentinos';

@@ -896,7 +896,8 @@ function updateSigninStatus(isSignedIn) {
 async function loadData(fileId) {
     try {
         const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-        return Array.isArray(JSON.parse(response.body)) ? JSON.parse(response.body) : [];
+        // Se devuelve el cuerpo de la respuesta directamente, la función que llama parseará
+        return response.body;
     } catch (err) {
         console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
         if (authExpired(err)) {
@@ -906,11 +907,64 @@ async function loadData(fileId) {
         throw new Error(`No se pudo cargar el archivo ${fileId}.`);
     }
 }
-async function loadReservasData() { try { const data = await loadData(RESERVAS_FILE_ID); reservas = data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })); localStorage.setItem('reservas', JSON.stringify(reservas)); } catch (err) { alert("No se pudieron cargar las reservas desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { renderAll(); } }
-async function loadClientsData() { try { clientes = await loadData(CLIENTS_FILE_ID); localStorage.setItem('clientes', JSON.stringify(clientes)); } catch (err) { alert("No se pudieron cargar los clientes desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { populateClientsDatalist(); } }
-async function loadGastosData() { try { gastos = await loadData(GASTOS_FILE_ID); localStorage.setItem('gastos', JSON.stringify(gastos)); } catch (err) { alert("No se pudieron cargar los gastos desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { calculateFinancialSummary(); } }
+async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(reservas)); } catch (err) { alert("No se pudieron cargar las reservas desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { renderAll(); } }
+async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(clientes)); } catch (err) { alert("No se pudieron cargar los clientes desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { populateClientsDatalist(); } }
+async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(gastos)); } catch (err) { alert("No se pudieron cargar los gastos desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { calculateFinancialSummary(); } }
 async function saveData(fileId, data) { if (!gapi.client.getToken()) { throw new Error("No autenticado. Inicie sesión con Google para guardar."); } const content = JSON.stringify(data, null, 2); try { await gapi.client.request({ path: '/upload/drive/v3/files/' + fileId, method: 'PATCH', params: { uploadType: 'media' }, body: content, }); } catch (error) { console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); if (authExpired(error)) { updateSigninStatus(false); alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); }
         throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); } }
+
+// --- Lógica de Back-up ---
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function downloadFile(fileId, fileName) {
+    console.log(`Iniciando descarga de ${fileName}...`);
+    const fileContent = await loadData(fileId);
+    const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    console.log(`${fileName} descargado.`);
+}
+
+async function handleBackup() {
+    if (!gapi.client.getToken()) {
+        alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
+        return;
+    }
+
+    const backupBtn = document.getElementById('backupBtn');
+    backupBtn.disabled = true;
+    backupBtn.textContent = 'Respaldando...';
+
+    try {
+        const filesToBackup = [
+            { id: RESERVAS_FILE_ID, name: 'reservas.json' },
+            { id: CLIENTS_FILE_ID, name: 'clientes.json' },
+            { id: GASTOS_FILE_ID, name: 'gastos.json' }
+        ];
+
+        for (const file of filesToBackup) {
+            await downloadFile(file.id, file.name);
+            await sleep(1000); // Pausa de 1 segundo entre descargas
+        }
+
+        alert('Back-up completado exitosamente.');
+
+    } catch (error) {
+        console.error('Error durante el proceso de back-up:', error);
+        alert(`Ocurrió un error al descargar los archivos: ${error.message}`);
+    } finally {
+        backupBtn.disabled = false;
+        backupBtn.textContent = 'Back-up';
+    }
+}
+
 
 // --- INICIALIZACIÓN ---
 function init() {
@@ -918,6 +972,7 @@ function init() {
     window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
     window.sendWhatsAppSummary = sendWhatsAppSummary;
     window.handleDeletePhoto = handleDeletePhoto;
+    window.handleBackup = handleBackup; // <-- Añadir la función al scope global
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
@@ -928,4 +983,4 @@ function init() {
 init();
 </script>
 </body>
-</ht
+</html>

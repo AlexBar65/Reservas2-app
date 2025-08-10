@@ -155,7 +155,6 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
   <button class="action-btn" onclick="openExpensesABM()">Gestión de Gastos</button>
   <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
   <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
-  <button class="action-btn" onclick="backupData()">Back-up</button>
 </footer>
 
 <!-- Modal de Reservas -->
@@ -862,105 +861,6 @@ function sendWhatsAppSummary() {
     let message = `*Resumen de Movimientos* 🛎️\n\n`;
     message += `*HOY (${today.toLocaleDateString('es-AR')})*\n`;
     if (checkInsToday.length > 0) { message += `➡️ *Check-in:* ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
-
-function backupData() {
-    const btns = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim() === 'Back-up');
-    const btn = btns.length ? btns[0] : null;
-
-    const setLoading = (loading) => {
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.textContent = loading ? 'Back-up...' : 'Back-up';
-    };
-
-    if (!gapi.client || !gapi.client.getToken()) {
-        alert('Inicie sesión con Google para hacer el back-up.');
-        return;
-    }
-
-    const files = [
-        { id: RESERVAS_FILE_ID, name: 'reservas.json' },
-        { id: CLIENTS_FILE_ID,  name: 'clientes.json' },
-        { id: GASTOS_FILE_ID,   name: 'gastos.json' }
-    ];
-
-    const downloadText = (filename, text) => {
-        const blob = new Blob([text], { type: 'application/json;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-
-    (async () => {
-        setLoading(true);
-        try {
-            for (const f of files) {
-                // get file content from Drive
-                const resp = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
-                // normalize content to string
-                let content;
-                if (typeof resp.body === 'string') {
-                    content = resp.body;
-                } else if (resp.result) {
-                    content = JSON.stringify(resp.result, null, 2);
-                } else {
-                    // Fallback: try to stringify whole response
-                    content = JSON.stringify(resp, null, 2);
-                }
-                if (!content || content === 'null') {
-                    console.warn('Archivo vacío o no legible:', f.name);
-                    content = '[]';
-                }
-                downloadText(f.name, content);
-                // pequeña pausa para evitar bloqueos de múltiples descargas seguidas
-                await new Promise(r => setTimeout(r, 200));
-            }
-            alert('Back-up listo: se descargaron reservas.json, clientes.json y gastos.json.');
-        } catch (err) {
-            console.error('Error en Back-up:', err);
-            const msg = err?.result?.error?.message || err?.message || 'Error desconocido';
-            alert('No se pudo completar el back-up. ' + msg + '. Verificá la sesión y permisos.');
-        } finally {
-            setLoading(false);
-        }
-    })();
-}
-    const files = [
-        { id: RESERVAS_FILE_ID, name: 'reservas.json' },
-        { id: CLIENTS_FILE_ID,  name: 'clientes.json' },
-        { id: GASTOS_FILE_ID,   name: 'gastos.json' }
-    ];
-    const downloadText = (filename, text) => {
-        const blob = new Blob([text], { type: 'application/json;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-    (async () => {
-        try {
-            for (const f of files) {
-                const resp = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
-                const content = typeof resp.body === 'string'
-                    ? resp.body
-                    : JSON.stringify(resp.result || resp, null, 2);
-                downloadText(f.name, content);
-            }
-            alert('Back-up listo: se descargaron reservas.json, clientes.json y gastos.json.');
-        } catch (err) {
-            console.error('Error en Back-up:', err);
-            alert('No se pudo completar el back-up. Verificá la sesión y permisos.');
-        }
-    })();
-}
-
     if (checkOutsToday.length > 0) { message += `⬅️ *Check-out:* ${checkOutsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
     if (checkInsToday.length === 0 && checkOutsToday.length === 0) { message += `_Sin movimientos para hoy._\n`; }
     message += `\n*MAÑANA (${tomorrow.toLocaleDateString('es-AR')})*\n`;

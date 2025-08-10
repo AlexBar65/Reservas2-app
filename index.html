@@ -87,6 +87,12 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
   margin-left: 6px;
   background-color: #fff;
 }
+
+.inline-datetime { display: flex; align-items: center; gap: 6px; }
+.inline-datetime input[type="date"] { flex: 1 1 auto; min-width: 0; }
+.time-select { width: 56px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+.inline-datetime .time-sep { font-weight: bold; }
+
 </style>
 </head>
 <body>
@@ -180,8 +186,11 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
           <button type="button" id="deletePhotoBtn" class="action-btn danger hidden" onclick="handleDeletePhoto()" style="margin-top: 10px; font-size: 0.8em; padding: 4px 8px;">Borrar Foto</button>
       </div>
 
+      <select id="parkingSelect" title="¿Requiere cochera?"><option value=""></option><option value="S">S</option><option value="N" selected>N</option></select>
+
+
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
-      <input id="checkInDate" type="date" required />
+      <div class="inline-datetime"><input id="checkInDate" type="date" required /><select id="checkInHour" class="time-select" title="Hora de ingreso"><option value=""></option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select><span class="time-sep">:</span><select id="checkInMinute" class="time-select" title="Minutos de ingreso"><option value=""></option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select></div>
       <input id="checkOutDate" type="date" required />
       <select id="platformSelect" required>
         <option value="AirBnB">AirBnB</option><option value="Booking">Booking</option><option value="Mercado Libre">Mercado Libre</option><option value="Alquiler argentino">Alquiler argentino</option><option value="Para Irnos">Para Irnos</option><option value="x Fuera">x Fuera</option><option value="Otra" selected>Otra</option>
@@ -354,7 +363,14 @@ function openModal(pref) {
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
     populateClientsDatalist();
     calculateDueAmount();
-    clearPhotoPreview();
+        // Nuevos campos: horario de ingreso (en blanco) y cochera (N por default en nuevas)
+    const hSel = document.getElementById('checkInHour');
+    const mSel = document.getElementById('checkInMinute');
+    if (hSel) hSel.value = '';
+    if (mSel) mSel.value = '';
+    const parkingSel = document.getElementById('parkingSelect');
+    if (parkingSel) parkingSel.value = 'N';
+clearPhotoPreview();
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
 }
 
@@ -382,7 +398,18 @@ function openEdit(id) {
     document.getElementById('notes').value = r.notes || '';
     document.getElementById('reservationId').value = r.id;
     calculateDueAmount();
-    document.getElementById('deleteBtn').classList.remove('hidden');
+        // Cargar horario de ingreso si existe
+    const timeStr = r.checkInTime || '';
+    const hh = timeStr ? timeStr.split(':')[0] : '';
+    const mm = timeStr ? timeStr.split(':')[1] : '';
+    const hSel = document.getElementById('checkInHour');
+    const mSel = document.getElementById('checkInMinute');
+    if (hSel) hSel.value = hh;
+    if (mSel) mSel.value = mm;
+    // Cargar cochera S/N o dejar en blanco si no existía
+    const parkingSel = document.getElementById('parkingSelect');
+    if (parkingSel) parkingSel.value = (r.cochera === 'S' || r.cochera === 'N') ? r.cochera : '';
+document.getElementById('deleteBtn').classList.remove('hidden');
     
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
@@ -558,6 +585,24 @@ async function handleSave() {
             status: document.getElementById('statusSelect').value,
             notes: document.getElementById('notes').value.trim()
         };
+        // Nuevos campos: horario de ingreso y cochera S/N
+        const hSel = document.getElementById('checkInHour');
+        const mSel = document.getElementById('checkInMinute');
+        const parkingSel = document.getElementById('parkingSelect');
+        const hour = hSel ? hSel.value : '';
+        const minute = mSel ? mSel.value : '';
+        let checkInTime = '';
+        if ((hour && !minute) || (!hour && minute)) {
+            throw new Error('Debe completar hora y minutos o dejar ambos en blanco.');
+        }
+        if (hour && minute) { checkInTime = `${hour}:${minute}`; }
+        let cocheraVal = (parkingSel ? parkingSel.value : '').toUpperCase();
+        if (cocheraVal && cocheraVal !== 'S' && cocheraVal !== 'N') {
+            throw new Error('Cochera debe ser S o N (o dejar en blanco).');
+        }
+        formData.checkInTime = checkInTime; // '' o 'HH:MM'
+        formData.cochera = cocheraVal || ''; // '' | 'S' | 'N'
+
 
         const photoInput = document.getElementById('guestPhoto');
         let newPhotoId = null;

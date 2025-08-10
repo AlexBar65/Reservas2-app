@@ -88,11 +88,12 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
   background-color: #fff;
 }
 
-/* --- Minimal CSS añadido: fecha + hora inline --- */
+/* --- Añadido mínimo: fecha + hora inline --- */
 .inline-datetime { display: flex; gap: 6px; align-items: center; }
 .inline-datetime input[type="date"] { max-width: 160px; }
 .inline-datetime select { width: auto; padding: 4px; }
 .inline-datetime .time-sep { font-weight: bold; }
+
 </style>
 </head>
 <body>
@@ -453,10 +454,6 @@ function openModal(pref) {
     document.getElementById('reservationForm').reset();
     document.getElementById('reservationId').value = '';
     document.getElementById('deleteBtn').classList.add('hidden');
-    // Defaults añadidos (solo altas)
-    const ph = document.getElementById('checkInHour'); if (ph) ph.value = '';
-    const pm = document.getElementById('checkInMinute'); if (pm) pm.value = '';
-    const psel = document.getElementById('parkingSelect'); if (psel) psel.value = 'N';
     if (pref) {
         document.getElementById('propertySelect').value = pref.property;
         document.getElementById('checkInDate').value = pref.date;
@@ -483,10 +480,9 @@ function openEdit(id) {
     document.getElementById('guestPhone1').value = r.guestPhone1 || '';
     document.getElementById('guestPhone2').value = r.guestPhone2 || '';
     document.getElementById('numGuests').value = r.numGuests;
-    const psel = document.getElementById('parkingSelect'); if (psel) psel.value = (r.parking === 'S' || r.parking === 'N') ? r.parking : '';
+    (function(){ const el=document.getElementById('parkingSelect'); if(el) el.value = (r.parking==='S'||r.parking==='N')?r.parking:''; })();
     document.getElementById('checkInDate').value = r.checkIn;
-    const ph = document.getElementById('checkInHour'); const pm = document.getElementById('checkInMinute');
-    if (ph && pm) { const ct = (r.checkInTime || ''); const parts = ct.split(':'); ph.value = parts[0] || ''; pm.value = parts[1] || ''; }
+    (function(){ const ct=(r.checkInTime||''); const p=ct.split(':'); const hh=document.getElementById('checkInHour'); const mm=document.getElementById('checkInMinute'); if(hh&&mm){ hh.value=p[0]||''; mm.value=p[1]||''; }})();
     document.getElementById('checkOutDate').value = r.checkOut;
     document.getElementById('platformSelect').value = r.platform || 'Otra';
     document.getElementById('currencySelect').value = r.currency || 'Pesos Argentinos';
@@ -661,10 +657,10 @@ async function handleSave() {
             guestEmail: document.getElementById('guestEmail').value.trim(),
             guestPhone1: document.getElementById('guestPhone1').value.trim(),
             \1
-            parking: (['SN'].includes((document.getElementById('parkingSelect')?.value || '').toUpperCase()) ? document.getElementById('parkingSelect').value.toUpperCase() : ''),
+            parking: ((document.getElementById('parkingSelect')?.value||'').toUpperCase()==='S'?'S':(document.getElementById('parkingSelect')?.value||'').toUpperCase()==='N'?'N':''),
             numGuests: +document.getElementById('numGuests').value,
             checkIn: document.getElementById('checkInDate').value,
-            checkInTime: (function(){ const hh = (document.getElementById('checkInHour')?.value || ''); const mm = (document.getElementById('checkInMinute')?.value || ''); return (hh !== '' && mm !== '') ? `${hh}:${mm}` : ''; })(),
+            checkInTime: (function(){ const h=document.getElementById('checkInHour')?.value||''; const m=document.getElementById('checkInMinute')?.value||''; return (h!=='' && m!=='')?`${h}:${m}`:''; })(),
             checkOut: document.getElementById('checkOutDate').value,
             platform: document.getElementById('platformSelect').value,
             currency: document.getElementById('currencySelect').value,

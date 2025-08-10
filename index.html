@@ -193,7 +193,7 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
         </select>
       </div>
       <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
-      <div class="inline-datetime"><input id="checkInDate" type="date" required /><input id="checkInTime" type="time" step="60" placeholder="HH:MM" /></div>
+      <div class="inline-datetime"><input id="checkInDate" type="date" required /><input id="checkInTime" type="time" step="60" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" /></div>
       <input id="checkOutDate" type="date" required />
       <select id="platformSelect" required>
         <option value="AirBnB">AirBnB</option><option value="Booking">Booking</option><option value="Mercado Libre">Mercado Libre</option><option value="Alquiler argentino">Alquiler argentino</option><option value="Para Irnos">Para Irnos</option><option value="x Fuera">x Fuera</option><option value="Otra" selected>Otra</option>

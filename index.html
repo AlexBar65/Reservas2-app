@@ -278,7 +278,8 @@ const authBtn = document.getElementById('authBtn'), signoutBtn = document.getEle
 // --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
 const propNames = { beltran4: 'Beltrán 4º', beltran8: 'Beltrán 8º', directorio8: 'Directorio 8º' };
-const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros'];
+// MODIFICACIÓN: Se agrega "Comisiones" a la lista de tipos de gastos.
+const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros', 'Comisiones'];
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
 
 // CHANGE: iniciar arrays vacíos; no leer localStorage si no hay sesión

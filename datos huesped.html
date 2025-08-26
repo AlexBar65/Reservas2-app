@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Formulario de Check‑in (WhatsApp)</title>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#22c55e; }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .container{max-width:680px;margin:0 auto;padding:24px}
+    .card{background:linear-gradient(180deg,#0b1222 0%, #0a0f1a 100%);border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:20px}
+    h1{font-size:20px;margin:0 0 6px 0}
+    p.sub{color:var(--muted);margin:0 0 16px 0}
+    form{display:grid;gap:12px}
+    label{font-size:14px;color:#cbd5e1}
+    input,select,button,textarea{font-size:16px}
+    .field{display:grid;gap:6px}
+    input,select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #334155;background:#0b1220;color:var(--text)}
+    input:focus,select:focus{outline:2px solid #1d4ed8;border-color:#1d4ed8}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:640px){.row{grid-template-columns:1fr}}
+    .help{font-size:12px;color:var(--muted)}
+    .btn{padding:12px 16px;border:0;border-radius:12px;cursor:pointer;font-weight:600}
+    .primary{background:var(--accent);color:#052e16}
+    .secondary{background:#1f2937;color:#e5e7eb;border:1px solid #374151}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+    .error{background:#7f1d1d;color:#fecaca;border:1px solid #b91c1c;padding:10px;border-radius:10px;display:none}
+    .ok{background:#052e16;color:#bbf7d0;border:1px solid #14532d;padding:10px;border-radius:10px;display:none}
+    .footer{margin-top:14px;color:#94a3b8;font-size:12px}
+    textarea#preview{width:100%;height:140px;background:#0b1220;border:1px solid #334155;border-radius:12px;color:#e5e7eb;padding:10px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Datos de Check‑in</h1>
+      <p class="sub">Completá y tocá “Enviar por WhatsApp”. El horario debe ser <strong>≥ 14:00</strong>.</p>
+
+      <!-- EDITÁ ESTE NÚMERO: WhatsApp de destino en formato internacional, SIN + ni 00. Ej: Argentina móvil CABA → 54911XXXXXXXX  -->
+      <input type="hidden" id="hostPhone" value="5491158092314" />
+
+      <div id="err" class="error"></div>
+      <div id="ok" class="ok">Listo para enviar ✓</div>
+
+      <form id="form">
+        <div class="field">
+          <label for="fullName">Nombre y apellido del contratante</label>
+          <input id="fullName" name="fullName" type="text" required placeholder="Juan Pérez" autocomplete="name" />
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="dni">DNI del contratante (solo números)</label>
+            <input id="dni" name="dni" type="text" inputmode="numeric" pattern="^\d{7,9}$" required placeholder="28765432" />
+            <div class="help">7 a 9 dígitos, sin puntos.</div>
+          </div>
+          <div class="field">
+            <label for="guests">Cantidad de huéspedes</label>
+            <select id="guests" name="guests" required>
+              <option value="" disabled selected>Elegí…</option>
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="email">Email del contratante</label>
+            <input id="email" name="email" type="email" required placeholder="nombre@correo.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="phone">Teléfono (con característica)</label>
+            <input id="phone" name="phone" type="tel" required placeholder="11 3456-7890" autocomplete="tel" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="firstNight">Primera noche</label>
+            <input id="firstNight" name="firstNight" type="date" required />
+          </div>
+          <div class="field">
+            <label for="lastNight">Última noche</label>
+            <input id="lastNight" name="lastNight" type="date" required />
+            <div class="help">Es la última noche que DUERMEN; el checkout es al día siguiente.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="checkInHour">Horario de ingreso (HH:MM)</label>
+          <div class="time-input" style="display:flex;align-items:center;gap:8px;max-width:260px;">
+            <input id="checkInHour" name="checkInHour" type="text" inputmode="numeric" placeholder="14" maxlength="2" value="14" style="width:88px;text-align:center;letter-spacing:1px" />
+            <span class="colon" aria-hidden="true" style="opacity:.8;">:</span>
+            <input id="checkInMin" name="checkInMin" type="text" inputmode="numeric" placeholder="00" maxlength="2" value="00" style="width:88px;text-align:center;letter-spacing:1px" />
+          </div>
+          <div class="help">Dos campos (HH:MM). Podés usar rueda del mouse o flechas.</div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn primary">Enviar por WhatsApp</button>
+          <button type="button" id="copyBtn" class="btn secondary" title="Copia el texto si WhatsApp no abre">Copiar texto</button>
+        </div>
+
+        <div class="footer">Si WhatsApp no abre, copiá el texto de abajo y pegalo en el chat:</div>
+        <textarea id="preview" readonly placeholder="El mensaje a enviar aparecerá aquí después de validar el formulario…"></textarea>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // === Ajustes rápidos ===
+    // Reemplazá este valor por TU WhatsApp en formato internacional (sin + ni 00). Ej: 54911XXXXXXXX
+    // También podés setearlo desde el input hidden#hostPhone arriba si preferís.
+
+    function ddmmyyyy(isoDate){
+      if(!isoDate) return "";
+      const [y,m,d] = isoDate.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    function difNoches(d1, d2){
+      const a = new Date(d1+"T00:00:00");
+      const b = new Date(d2+"T00:00:00");
+      const ms = b - a; // diferencia en ms
+      return Math.max(0, Math.round(ms / (1000*60*60*24)) + 1); // noches inclusivas
+    }
+
+    function setError(msg){
+      const err = document.getElementById('err');
+      err.textContent = msg; err.style.display = 'block';
+      document.getElementById('ok').style.display = 'none';
+    }
+    function clearError(){
+      const err = document.getElementById('err');
+      err.textContent = ''; err.style.display = 'none';
+    }
+
+    function setOk(msg){
+      const ok = document.getElementById('ok');
+      ok.textContent = msg || 'Listo para enviar ✓';
+      ok.style.display = 'block';
+    }
+function buildMessage(v){
+      const noches = difNoches(v.firstNight, v.lastNight);
+      return (
+        `*Formulario de Check-in*%0A`+
+        `• Nombre y apellido: ${encodeURIComponent(v.fullName)}%0A`+
+        `• DNI: ${encodeURIComponent(v.dni)}%0A`+
+        `• Email: ${encodeURIComponent(v.email)}%0A`+
+        `• Teléfono: ${encodeURIComponent(v.phone)}%0A`+
+        `• Primera noche: ${encodeURIComponent(ddmmyyyy(v.firstNight))}%0A`+
+        `• Última noche: ${encodeURIComponent(ddmmyyyy(v.lastNight))} (${noches} noche${noches>1?'s':''})%0A`+
+        `• Cantidad de huéspedes: ${encodeURIComponent(v.guests)}%0A`+
+        `• Horario de ingreso: ${encodeURIComponent(v.checkIn)}%0A`
+      );
+    }
+
+    const form = document.getElementById('form');
+    const preview = document.getElementById('preview');
+
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      clearError();
+
+      const fullName = document.getElementById('fullName').value.trim();
+      const dni = document.getElementById('dni').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const firstNight = document.getElementById('firstNight').value;
+      const lastNight = document.getElementById('lastNight').value;
+      const guests = document.getElementById('guests').value;
+      const hh = document.getElementById('checkInHour').value.padStart(2,'0');
+      const mm = document.getElementById('checkInMin').value.padStart(2,'0');
+      const checkIn = `${hh}:${mm}`;
+
+      // Validaciones adicionales
+      if(!/^[0-9]{7,9}$/.test(dni)) return setError('El DNI debe tener 7 a 9 dígitos, sin puntos.');
+      if(!firstNight || !lastNight) return setError('Completá las fechas.');
+      if(lastNight < firstNight) return setError('La última noche no puede ser anterior a la primera.');const values = { fullName, dni, email, phone, firstNight, lastNight, guests, checkIn };
+      const textEncoded = buildMessage(values);
+
+      // Actualiza vista previa (decodificada para que el usuario la lea)
+      preview.value = decodeURIComponent(textEncoded.replace(/%0A/g, "\n"));
+      setOk('Perfecto. Abriendo WhatsApp…');
+
+      // Número de destino (host)
+      let host = document.getElementById('hostPhone').value.trim();
+      if(!/^[0-9]{8,15}$/.test(host)) {
+        return setError('Configurá tu número de WhatsApp en formato internacional (ej: 54911XXXXXXXX).');
+      }
+
+      const url = `https://wa.me/${host}?text=${textEncoded}`;
+      // Redirige para abrir WhatsApp (móvil abre app; escritorio abre web)
+      window.location.href = url;
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', async ()=>{
+      if(!preview.value) {
+        // Genera con lo que haya cargado aunque no haya enviado
+        const fullName = document.getElementById('fullName').value.trim();
+        const dni = document.getElementById('dni').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const firstNight = document.getElementById('firstNight').value;
+        const lastNight = document.getElementById('lastNight').value;
+        const guests = document.getElementById('guests').value;
+        const hh = document.getElementById('checkInHour').value.padStart(2,'0');
+      const mm = document.getElementById('checkInMin').value.padStart(2,'0');
+      const checkIn = `${hh}:${mm}`;
+        const values = { fullName, dni, email, phone, firstNight, lastNight, guests, checkIn };
+        const textEncoded = buildMessage(values);
+        preview.value = decodeURIComponent(textEncoded.replace(/%0A/g, "\n"));
+      }
+      try {
+        await navigator.clipboard.writeText(preview.value);
+        setOk('Texto copiado. Pegalo en WhatsApp si no se abrió solo.');
+      } catch(e){ setError('No se pudo copiar automáticamente. Seleccioná y copiá manualmente.'); }
+    });
+    (function initTimeInputs(){
+    const hour = document.getElementById('checkInHour');
+    const min = document.getElementById('checkInMin');
+    const pad2 = n => String(n).padStart(2,'0');
+    const toInt = (v,def)=>{ const n=parseInt(v,10); return Number.isFinite(n)?n:def; };
+    function setHour(val){ val = toInt(val,14); if(val<14) val=23; if(val>23) val=14; hour.value=pad2(val); }
+    function setMin(val){ val = toInt(val,0); if(val<0) val=59; if(val>59) val=0; min.value=pad2(val); }
+    // rueda del mouse
+    hour.addEventListener('wheel', e=>{ e.preventDefault(); setHour(toInt(hour.value,14) + (e.deltaY<0?1:-1)); }, {passive:false});
+    min.addEventListener('wheel', e=>{ e.preventDefault(); setMin(toInt(min.value,0) + (e.deltaY<0?1:-1)); }, {passive:false});
+    // flechas
+    hour.addEventListener('keydown', e=>{ if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault(); setHour(toInt(hour.value,14) + (e.key==='ArrowUp'?1:-1)); }});
+    min.addEventListener('keydown', e=>{ if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault(); setMin(toInt(min.value,0) + (e.key==='ArrowUp'?1:-1)); }});
+    // sanitizar y pad
+    hour.addEventListener('input', ()=>{ hour.value = hour.value.replace(/\D/g,'').slice(0,2); });
+    min.addEventListener('input', ()=>{ min.value = min.value.replace(/\D/g,'').slice(0,2); });
+    hour.addEventListener('blur', ()=>{ let v=toInt(hour.value,14); if(isNaN(v)) v=14; hour.value=pad2(v); });
+    min.addEventListener('blur', ()=>{ let v=toInt(min.value,0); if(isNaN(v)) v=0; min.value=pad2(v); });
+    // init
+    //if(!hour.value) hour.value='14'; if(!min.value) min.value='00';
+    //hour.value=pad2(hour.value); min.value=pad2(min.value);
+  })();
+</script>
+</body>
+</html>

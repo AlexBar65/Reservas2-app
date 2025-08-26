@@ -57,7 +57,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .financial-summary .expanded-breakdown-item{font-size:0.8em; display:flex; justify-content:flex-start; align-items:center; flex-wrap:wrap; padding: 4px; border-bottom: 1px solid #eee;}
 .financial-summary .expanded-breakdown-item strong{margin-right: 5px; white-space:nowrap;}
 .financial-summary .expanded-breakdown-item span{margin-right: 10px; white-space:nowrap;}
-footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
+footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; padding:10px;}
 
 /* Estilos para el módulo de gastos */
 .expenses-abm-container { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -156,6 +156,8 @@ footer{display:flex; justify-content:flex-start; gap: 10px; padding:10px;}
   <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
   <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
   <button id="backupBtn" class="action-btn" style="background-color: #f39c12;" onclick="handleBackup()">Back-up</button>
+  <!-- MODIFICACIÓN: Nuevo botón para enviar formulario al huésped -->
+  <button class="action-btn" style="background-color: #075e54;" onclick="sendGuestFormViaWhatsApp()">Enviar Formulario a Huésped</button>
 </footer>
 
 <!-- Modal de Reservas -->
@@ -278,22 +280,19 @@ const authBtn = document.getElementById('authBtn'), signoutBtn = document.getEle
 // --- LÓGICA DE LA APLICACIÓN ---
 const props = ['beltran4', 'beltran8', 'directorio8'];
 const propNames = { beltran4: 'Beltrán 4º', beltran8: 'Beltrán 8º', directorio8: 'Directorio 8º' };
-// MODIFICACIÓN: Se agrega "Comisiones" a la lista de tipos de gastos.
 const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros', 'Comisiones'];
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
 
-// CHANGE: iniciar arrays vacíos; no leer localStorage si no hay sesión
 let reservas = [];
 let clientes = [];
 let gastos = [];
 let highlightedIds = [];
 let y = new Date().getFullYear(), m = new Date().getMonth();
-let currentSummaryProp = props[0]; // Variable de estado para el depto seleccionado
+let currentSummaryProp = props[0];
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- Utilidad mínima para detectar expiración de token ---
 function authExpired(err){
-  // 401 o invalid_grant/invalid_token
   const code = err?.status || err?.result?.error?.code;
   const reason = err?.result?.error?.errors?.[0]?.reason || err?.result?.error?.status;
   return code === 401 || reason === 'authError' || /invalid/i.test(String(reason||''));
@@ -365,14 +364,13 @@ function openModal(pref) {
     document.getElementById('modalTitle').textContent = 'Nueva reserva';
     populateClientsDatalist();
     calculateDueAmount();
-        // Nuevos campos: horario de ingreso (en blanco) y cochera (N por default en nuevas)
     const hSel = document.getElementById('checkInHour');
     const mSel = document.getElementById('checkInMinute');
     if (hSel) hSel.value = '';
     if (mSel) mSel.value = '';
     const parkingSel = document.getElementById('parkingSelect');
     if (parkingSel) parkingSel.value = 'N';
-clearPhotoPreview();
+    clearPhotoPreview();
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
 }
 
@@ -400,7 +398,6 @@ function openEdit(id) {
     document.getElementById('notes').value = r.notes || '';
     document.getElementById('reservationId').value = r.id;
     calculateDueAmount();
-        // Cargar horario de ingreso si existe
     const timeStr = r.checkInTime || '';
     const hh = timeStr ? timeStr.split(':')[0] : '';
     const mm = timeStr ? timeStr.split(':')[1] : '';
@@ -408,10 +405,9 @@ function openEdit(id) {
     const mSel = document.getElementById('checkInMinute');
     if (hSel) hSel.value = hh;
     if (mSel) mSel.value = mm;
-    // Cargar cochera S/N o dejar en blanco si no existía
     const parkingSel = document.getElementById('parkingSelect');
     if (parkingSel) parkingSel.value = (r.cochera === 'S' || r.cochera === 'N') ? r.cochera : '';
-document.getElementById('deleteBtn').classList.remove('hidden');
+    document.getElementById('deleteBtn').classList.remove('hidden');
     
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
@@ -479,9 +475,6 @@ function handleDeletePhoto() {
     clearPhotoPreview();
 }
 
-/**
- * Sube una foto a Google Drive usando el método robusto "Resumable Upload".
- */
 async function uploadPhoto(file) {
     if (!gapi.client.getToken() || !gapi.client.getToken().access_token) {
         throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
@@ -496,8 +489,6 @@ async function uploadPhoto(file) {
             'name': `${Date.now()}_${file.name}`,
             'parents': [CLIENT_PHOTOS_FOLDER_ID]
         };
-
-        // Paso 1: Iniciar la sesión de subida reanudable
         const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
             method: 'POST',
             headers: {
@@ -512,7 +503,6 @@ async function uploadPhoto(file) {
         const locationUrl = initResponse.headers.get('Location');
         if (!locationUrl) throw new Error('No se recibió la URL de subida de Drive.');
 
-        // Paso 2: Subir el contenido del archivo a la URL de la sesión
         const uploadResponse = await fetch(locationUrl, {
             method: 'PUT',
             headers: { 'Content-Range': `bytes 0-${file.size - 1}/${file.size}` },
@@ -527,7 +517,6 @@ async function uploadPhoto(file) {
         const result = await uploadResponse.json();
         const fileId = result.id;
 
-        // Paso 3: Establecer permisos públicos.
         await gapi.client.drive.permissions.create({
             fileId: fileId,
             resource: { 'role': 'reader', 'type': 'anyone' }
@@ -587,7 +576,6 @@ async function handleSave() {
             status: document.getElementById('statusSelect').value,
             notes: document.getElementById('notes').value.trim()
         };
-        // Nuevos campos: horario de ingreso y cochera S/N
         const hSel = document.getElementById('checkInHour');
         const mSel = document.getElementById('checkInMinute');
         const parkingSel = document.getElementById('parkingSelect');
@@ -602,8 +590,8 @@ async function handleSave() {
         if (cocheraVal && cocheraVal !== 'S' && cocheraVal !== 'N') {
             throw new Error('Cochera debe ser S o N (o dejar en blanco).');
         }
-        formData.checkInTime = checkInTime; // '' o 'HH:MM'
-        formData.cochera = cocheraVal || ''; // '' | 'S' | 'N'
+        formData.checkInTime = checkInTime;
+        formData.cochera = cocheraVal || '';
 
 
         const photoInput = document.getElementById('guestPhoto');
@@ -691,51 +679,43 @@ async function handleDelete() {
     const originalClientes = JSON.parse(JSON.stringify(clientes));
 
     const reservationToDelete = reservas.find(r => r.id === id);
-    if (!reservationToDelete) return; // Salida temprana si no se encuentra
+    if (!reservationToDelete) return;
 
-    // 1. Actualizar la lista de reservas en memoria
     reservas = reservas.filter(r => r.id !== id);
 
     const guestName = reservationToDelete.guestName;
     let photoIdToDelete = null;
 
-    // 2. Comprobar si quedan más reservas para este huésped
     const hasMoreReservations = reservas.some(r => r.guestName.toLowerCase() === guestName.toLowerCase());
 
-    // 3. Si no quedan más reservas, eliminar la referencia de la foto
     if (!hasMoreReservations) {
         const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
         if (clientIndex > -1 && clientes[clientIndex].photoId) {
             photoIdToDelete = clientes[clientIndex].photoId;
-            clientes[clientIndex].photoId = null; // Eliminar la referencia del JSON
+            clientes[clientIndex].photoId = null;
         }
     }
 
     try {
-        // 4. Guardar los cambios en la nube
         await save();
         console.log('Reserva eliminada y datos guardados en la nube.');
         
-        // 5. Si todo se guardó bien, eliminar el archivo de la foto de Drive
         if (photoIdToDelete) {
             await deletePhotoFromDrive(photoIdToDelete);
         }
 
     } catch (error) {
-        // 6. Si algo falla, revertir todos los cambios en memoria
         reservas = originalReservas;
         clientes = originalClientes;
         console.error('Error al guardar la eliminación:', error);
         alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
     } finally {
-        // 7. Renderizar la UI y cerrar el modal
         renderAll();
         closeModal();
     }
 }
 
 async function save() {
-    // Seguir guardando en localStorage (pero solo desde sesión activa)
     localStorage.setItem('reservas', JSON.stringify(reservas));
     localStorage.setItem('clientes', JSON.stringify(clientes));
     localStorage.setItem('gastos', JSON.stringify(gastos));
@@ -810,7 +790,7 @@ function calculateFinancialSummary(selectedPropOverride = null) {
     const showAll = document.getElementById('viewToggleCheckbox').checked;
     
     if (showAll) {
-        breakdownContainer.innerHTML = ''; // Limpiar solo si se muestra todo
+        breakdownContainer.innerHTML = '';
         props.forEach(prop => {
             const propData = byProperty[prop];
             const propElement = document.createElement('div');
@@ -873,6 +853,39 @@ function sendWhatsAppSummary() {
     phoneNumbers.forEach(number => { if (number) { const whatsappUrl = `https://wa.me/${number}?text=${encodedMessage}`; window.open(whatsappUrl, '_blank'); } });
 }
 
+// --- MODIFICACIÓN: Nueva función para enviar formulario al huésped ---
+function sendGuestFormViaWhatsApp() {
+    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
+    if (!phone || phone.trim() === '') {
+        return; // El usuario canceló o no ingresó nada
+    }
+
+    // Limpia el número de teléfono, quitando caracteres no numéricos
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.length < 8) {
+        alert("El número de teléfono parece inválido. Por favor, ingrese un número coherente.");
+        return;
+    }
+
+    // Construye la URL del formulario. Asume que 'datos huesped.html' está en el mismo directorio.
+    // Reemplaza 'index.html' (si existe) y añade el nombre del archivo de formulario.
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+    const formUrl = baseUrl + 'datos%20huesped.html'; // Codifica el espacio en el nombre del archivo
+
+    // Construye el mensaje de WhatsApp
+    const intro = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor completá este mini formulario y, al finalizar, enviame también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌`;
+    const alternative = `Si el link no te abre, podés responderme acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 14:00, formato 24 horas hh:mm)\n\nAdjuntar: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
+    
+    const fullMessage = `${intro}\n\n${formUrl}\n\n${alternative}`;
+    
+    // Codifica el mensaje para la URL y abre WhatsApp
+    const encodedMessage = encodeURIComponent(fullMessage);
+    const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
+}
+
+
 // --- Lógica de Autenticación de Google ---
 function gapiLoaded() { gapi.load('client', initializeGapiClient); }
 function gisLoaded() { tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPES, callback: '', }); gisInited = true; maybeEnableAuthButtons(); }
@@ -885,7 +898,6 @@ function updateSigninStatus(isSignedIn) {
         authBtn.classList.add('hidden');
         signoutBtn.classList.remove('hidden');
     } else {
-        // CHANGE: mostrar botón de login y limpiar arrays en memoria para evitar confusiones
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
         reservas = [];
@@ -897,7 +909,6 @@ function updateSigninStatus(isSignedIn) {
 async function loadData(fileId) {
     try {
         const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-        // Se devuelve el cuerpo de la respuesta directamente, la función que llama parseará
         return response.body;
     } catch (err) {
         console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
@@ -952,7 +963,7 @@ async function handleBackup() {
 
         for (const file of filesToBackup) {
             await downloadFile(file.id, file.name);
-            await sleep(1000); // Pausa de 1 segundo entre descargas
+            await sleep(1000);
         }
 
         alert('Back-up completado exitosamente.');
@@ -973,7 +984,9 @@ function init() {
     window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
     window.sendWhatsAppSummary = sendWhatsAppSummary;
     window.handleDeletePhoto = handleDeletePhoto;
-    window.handleBackup = handleBackup; // <-- Añadir la función al scope global
+    window.handleBackup = handleBackup;
+    // MODIFICACIÓN: Se añade la nueva función al scope global
+    window.sendGuestFormViaWhatsApp = sendGuestFormViaWhatsApp;
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

@@ -156,8 +156,9 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
   <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
   <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
   <button id="backupBtn" class="action-btn" style="background-color: #f39c12;" onclick="handleBackup()">Back-up</button>
-  <!-- MODIFICACIÓN: Nuevo botón para enviar formulario al huésped -->
-  <button class="action-btn" style="background-color: #075e54;" onclick="sendGuestFormViaWhatsApp()">Enviar Formulario a Huésped</button>
+  <!-- MODIFICACIÓN: Botones separados para envío automático y manual -->
+  <button class="action-btn" style="background-color: #075e54;" onclick="sendGuestFormAuto()">Enviar Form. Huésped Automático</button>
+  <button class="action-btn" style="background-color: #128C7E;" onclick="sendGuestFormManual()">Enviar Form. Huésped Manual</button>
 </footer>
 
 <!-- Modal de Reservas -->
@@ -853,35 +854,42 @@ function sendWhatsAppSummary() {
     phoneNumbers.forEach(number => { if (number) { const whatsappUrl = `https://wa.me/${number}?text=${encodedMessage}`; window.open(whatsappUrl, '_blank'); } });
 }
 
-// --- MODIFICACIÓN: Nueva función para enviar formulario al huésped ---
-function sendGuestFormViaWhatsApp() {
-    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
-    if (!phone || phone.trim() === '') {
-        return; // El usuario canceló o no ingresó nada
-    }
+// --- MODIFICACIÓN: Funciones separadas para envío de formulario ---
 
-    // Limpia el número de teléfono, quitando caracteres no numéricos
+function sendGuestFormAuto() {
+    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
+    if (!phone || phone.trim() === '') return;
+
     const cleanedPhone = phone.replace(/\D/g, '');
     if (cleanedPhone.length < 8) {
-        alert("El número de teléfono parece inválido. Por favor, ingrese un número coherente.");
+        alert("El número de teléfono parece inválido.");
         return;
     }
 
-    // Construye la URL del formulario. Asume que 'datos huesped.html' está en el mismo directorio.
-    // Reemplaza 'index.html' (si existe) y añade el nombre del archivo de formulario.
     const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-    const formUrl = baseUrl + 'datos%20huesped.html'; // Codifica el espacio en el nombre del archivo
+    const formUrl = baseUrl + 'datos%20huesped.html';
 
-    // Construye el mensaje de WhatsApp
-    const intro = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor completá este mini formulario y, al finalizar, enviame también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌`;
-    const alternative = `Si el link no te abre, podés responderme acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 14:00, formato 24 horas hh:mm)\n\nAdjuntar: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
+    const message = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor completá este mini formulario (hace click en link) y, al finalizar clickera el boton Enviar por Whatsupp. Enviame adicionalmente, también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌\n\n${formUrl}`;
     
-    const fullMessage = `${intro}\n\n${formUrl}\n\n${alternative}`;
-    
-    // Codifica el mensaje para la URL y abre WhatsApp
-    const encodedMessage = encodeURIComponent(fullMessage);
+    const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+}
+
+function sendGuestFormManual() {
+    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
+    if (!phone || phone.trim() === '') return;
+
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.length < 8) {
+        alert("El número de teléfono parece inválido.");
+        return;
+    }
+
+    const message = `Hola! ¿Cómo estás? 😊, te solicitamos algunos datos que necesitamos para asegurar tu reserva y registrarte. Podés responderme las siguientes preguntas acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 13:00, formato 24 horas hh:mm)\n\nAdjuntar adicionalmente: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
     
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
 }
 
@@ -985,8 +993,9 @@ function init() {
     window.sendWhatsAppSummary = sendWhatsAppSummary;
     window.handleDeletePhoto = handleDeletePhoto;
     window.handleBackup = handleBackup;
-    // MODIFICACIÓN: Se añade la nueva función al scope global
-    window.sendGuestFormViaWhatsApp = sendGuestFormViaWhatsApp;
+    // MODIFICACIÓN: Se añaden las nuevas funciones al scope global
+    window.sendGuestFormAuto = sendGuestFormAuto;
+    window.sendGuestFormManual = sendGuestFormManual;
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

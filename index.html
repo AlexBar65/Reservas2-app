@@ -122,7 +122,7 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
     <h3>Resumen Financiero del Mes</h3>
     <div>
         <label for="exchangeRate">Cotización Dólar:</label>
-        <input type="number" id="exchangeRate" value="1300" oninput="calculateFinancialSummary()">
+        <input type="number" id="exchangeRate" value="1350" oninput="calculateFinancialSummary()">
     </div>
     <hr style="margin: 10px 0;">
     <h4>Totales Generales</h4>
@@ -869,7 +869,7 @@ function sendGuestFormAuto() {
     const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
     const formUrl = baseUrl + 'datos%20huesped.html';
 
-    const message = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor completá este mini formulario (hace click en link) y, al finalizar clickera el boton Enviar por Whatsupp. Enviame adicionalmente, también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌\n\n${formUrl}`;
+    const message = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor por un tema de seguridad completá este mini formulario (hace click en el link) y, al finalizar, clickea el botón Enviar por WhatsApp. Enviame adicionalmente, también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌\n\n${formUrl}`;
     
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
@@ -886,7 +886,7 @@ function sendGuestFormManual() {
         return;
     }
 
-    const message = `Hola! ¿Cómo estás? 😊, te solicitamos algunos datos que necesitamos para asegurar tu reserva y registrarte. Podés responderme las siguientes preguntas acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 13:00, formato 24 horas hh:mm)\n\nAdjuntar adicionalmente: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
+    const message = `Hola! ¿Cómo estás? 😊, te solicitamos algunos datos que necesitamos para asegurar tu reserva, registrarte y por seguridad. Podés responderme las siguientes preguntas acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 13:00, formato 24 horas hh:mm)\n\nAdjuntar adicionalmente: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
     
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;

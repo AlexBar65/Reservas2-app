@@ -934,8 +934,9 @@ function generateGuestFormPDF() {
             return `${d}/${m}/${y}`;
         };
         const pdfHelperGetAddress = (property) => {
-            if (property === 'beltran4' || property === 'beltran8') return 'Beltran 35';
-            if (property === 'directorio8') return 'Directorio 1135';
+            if (property === 'beltran4') return 'Fray Luis Beltran 35 4to A';
+            if (property === 'beltran8') return 'Fray Luis Beltran 35 8vo A';
+            if (property === 'directorio8') return 'Avda Directorio 1019 8vo A Caballito';
             return '---';
         };
         const pdfHelperGetCheckoutDate = (dateString) => {

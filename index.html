@@ -271,9 +271,9 @@ const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
-// MODIFICACIÓN: Añadido ID para el logo. ¡REEMPLAZAR ESTE VALOR!
-const LOGO_FILE_ID = '1ZnQGurx2-EKg0dWIC7ruQVt4qH3IqPtu'; 
 const SCOPES = 'https://www.googleapis.com/auth/drive';
+// MODIFICACIÓN: URL del logo. El archivo debe estar en la misma carpeta que index.html en GitHub/Vercel.
+const LOGO_URL = 'logo jya sites optimizad para jspdf.jpeg';
 
 let tokenClient, gapiInited = false, gisInited = false;
 const authBtn = document.getElementById('authBtn'), signoutBtn = document.getElementById('signoutBtn');
@@ -894,7 +894,7 @@ function sendGuestFormManual() {
 }
 
 
-// --- MODIFICACIÓN: Función de PDF actualizada ---
+// --- MODIFICACIÓN: Función de PDF actualizada para cargar logo desde URL ---
 async function generateGuestFormPDF() {
     const { jsPDF } = window.jspdf;
     const id = document.getElementById('reservationId').value;
@@ -903,162 +903,138 @@ async function generateGuestFormPDF() {
         alert('No se encontró la reserva para generar el formulario.');
         return;
     }
-
-    // --- NUEVO: Leer logo desde Google Drive ---
-    let logoBase64;
-    try {
-        const response = await gapi.client.drive.files.get({
-            fileId: LOGO_FILE_ID,
-            alt: 'media'
-        });
-        
-        // Convertir la respuesta binaria a Base64
-        const blob = new Blob([response.body], { type: response.headers['content-type'] });
-        logoBase64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-
-    } catch (error) {
-        console.error("Error al cargar el logo desde Google Drive:", error);
-        alert("No se pudo cargar el logo desde Google Drive. Verifique el ID del archivo y los permisos. Se generará el PDF sin logo.");
-    }
     
-    // --- DISEÑO PROFESIONAL ---
-    try {
-        const doc = new jsPDF();
-        
-        const formatDate = (dateString) => {
-            if (!dateString) return '';
-            const [pdfYear, pdfMonth, pdfDay] = dateString.split('-');
-            return `${pdfDay}/${pdfMonth}/${pdfYear}`;
-        };
+    // Función interna para crear y guardar el PDF
+    const createPdf = (logoDataUrl = null) => {
+        try {
+            const doc = new jsPDF();
+            
+            const formatDate = (dateString) => {
+                if (!dateString) return '';
+                const [y, m, d] = dateString.split('-');
+                return `${d}/${m}/${y}`;
+            };
+            const getCurrentDate = () => {
+                const today = new Date();
+                const d = String(today.getDate()).padStart(2, '0');
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const y = today.getFullYear();
+                return `${d}/${m}/${y}`;
+            };
+            const getAddress = (property) => {
+                if (property === 'beltran4' || property === 'beltran8') return 'Beltran 35';
+                if (property === 'directorio8') return 'Directorio 1135';
+                return '';
+            };
+            const getCheckoutDate = (dateString) => {
+                if (!dateString) return '';
+                const checkout = new Date(dateString + 'T00:00:00');
+                checkout.setDate(checkout.getDate() + 1);
+                const d = String(checkout.getDate()).padStart(2, '0');
+                const m = String(checkout.getMonth() + 1).padStart(2, '0');
+                const y = checkout.getFullYear();
+                return `${d}/${m}/${y} (11:00 AM)`;
+            };
 
-        const getCurrentDate = () => {
-            const today = new Date();
-            const currentDay = String(today.getDate()).padStart(2, '0');
-            const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
-            const currentYear = today.getFullYear();
-            return `${currentDay}/${currentMonth}/${currentYear}`;
-        };
-        
-        const getAddress = (property) => {
-            if (property === 'beltran4' || property === 'beltran8') return 'Beltran 35';
-            if (property === 'directorio8') return 'Directorio 1135';
-            return '';
-        };
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const margin = 15;
+            let yPos = 20;
 
-        const getCheckoutDate = (dateString) => {
-            if (!dateString) return '';
-            const checkout = new Date(dateString + 'T00:00:00');
-            checkout.setDate(checkout.getDate() + 1);
-            const checkoutDay = String(checkout.getDate()).padStart(2, '0');
-            const checkoutMonth = String(checkout.getMonth() + 1).padStart(2, '0');
-            const checkoutYear = checkout.getFullYear();
-            return `${checkoutDay}/${checkoutMonth}/${checkoutYear} (11:00 AM)`;
-        };
+            if (logoDataUrl) {
+                doc.addImage(logoDataUrl, 'JPEG', pageW - margin - 30, 15, 30, 30);
+            }
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('Responsabilidad por Uso del Departamento - Alquiler Temporario', margin, yPos);
+            yPos += 7;
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Buenos Aires, ${getCurrentDate()}`, margin, yPos);
+            yPos += 15;
+            doc.setDrawColor(180, 180, 180);
+            doc.line(margin, yPos - 5, pageW - margin, yPos - 5);
 
-        // --- Maquetado del PDF ---
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-        const margin = 15;
-        let yPos = 20;
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.text('DATOS DE LA ESTADÍA', margin, yPos);
+            yPos += 4;
+            doc.setDrawColor(0, 0, 0);
+            doc.rect(margin, yPos, pageW - (margin * 2), 32);
+            yPos += 8;
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(10);
+            doc.text(`Lugar del hospedaje: CABA`, margin + 3, yPos);
+            doc.text(`Dirección: ${getAddress(r.property)}`, pageW / 2, yPos);
+            yPos += 8;
+            doc.text(`Fecha de ingreso: ${formatDate(r.checkIn)}`, margin + 3, yPos);
+            yPos += 8;
+            doc.text(`Fecha de egreso: ${getCheckoutDate(r.checkOut)}`, margin + 3, yPos);
+            yPos += 16;
 
-        // Cabecera
-        if (logoBase64) {
-            doc.addImage(logoBase64, 'JPEG', pageW - margin - 30, 15, 30, 30);
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.text('DECLARACIÓN DEL HUÉSPED', margin, yPos);
+            yPos += 8;
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            const declaration = ['1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o temporarios.', '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble, sus instalaciones y bienes.', '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por personas que me acompañen.', '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de permanencia, ya que el uso es estrictamente temporario.', '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al propietario a conservar una copia de mi DNI para fines de seguridad.'];
+            const textBlock = declaration.join('\n\n');
+            const splitText = doc.splitTextToSize(textBlock, pageW - (margin * 2) - 6);
+            doc.rect(margin, yPos - 4, pageW - (margin * 2), (splitText.length * 4) + 12);
+            doc.text(splitText, margin + 3, yPos);
+            yPos += (splitText.length * 4) + 15;
+
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.text('DATOS PERSONALES DEL CONTRATANTE', margin, yPos);
+            yPos += 4;
+            doc.rect(margin, yPos, pageW - (margin * 2), 40);
+            yPos += 8;
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(10);
+            doc.text(`Nombre y apellido: ${r.guestName || '__________________________________'}`, margin + 3, yPos);
+            yPos += 8;
+            doc.text(`DNI: ${r.guestDni || '________________'}`, margin + 3, yPos);
+            doc.text(`Teléfono: ${r.guestPhone1 || '________________'}`, pageW / 2, yPos);
+            yPos += 8;
+            doc.text(`Correo electrónico: ${r.guestEmail || '__________________________________'}`, margin + 3, yPos);
+            yPos += 8;
+            doc.text(`Cantidad de personas que se hospedan: ${r.numGuests || '____'}`, margin + 3, yPos);
+            
+            yPos = pageH - 40;
+            doc.text('Firma del huésped:', margin, yPos);
+            doc.line(margin + 40, yPos, margin + 100, yPos);
+            doc.text('Firma del propietario/responsable:', pageW / 2, yPos);
+            doc.line(pageW / 2 + 60, yPos, pageW - margin, yPos);
+
+            doc.save(`Formulario-Ingreso-${r.guestName.replace(/ /g, '_')}.pdf`);
+        } catch (error) {
+            console.error("Error al generar el PDF:", error);
+            alert(`Ocurrió un error al generar el PDF: ${error.message}`);
         }
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('Responsabilidad por Uso del Departamento', margin, yPos);
-        yPos += 7;
-        doc.text('Alquiler Temporario', margin, yPos);
-        yPos += 7;
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
-        doc.text(`Buenos Aires, ${getCurrentDate()}`, margin, yPos);
-        yPos += 15;
-        doc.setDrawColor(180, 180, 180);
-        doc.line(margin, yPos - 5, pageW - margin, yPos - 5);
-
-
-        // Sección: Datos de la Estadía
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text('DATOS DE LA ESTADÍA', margin, yPos);
-        yPos += 4;
-        doc.setDrawColor(0, 0, 0);
-        doc.rect(margin, yPos, pageW - (margin * 2), 32);
-        yPos += 8;
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(10);
-        doc.text(`Lugar del hospedaje: CABA`, margin + 3, yPos);
-        doc.text(`Dirección: ${getAddress(r.property)}`, pageW / 2, yPos);
-        yPos += 8;
-        doc.text(`Fecha de ingreso: ${formatDate(r.checkIn)}`, margin + 3, yPos);
-        yPos += 8;
-        doc.text(`Fecha de egreso: ${getCheckoutDate(r.checkOut)}`, margin + 3, yPos);
-        yPos += 16;
-
-
-        // Sección: Declaración del Huésped
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text('DECLARACIÓN DEL HUÉSPED', margin, yPos);
-        yPos += 8;
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'normal');
-        const declaration = [
-            '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o temporarios.',
-            '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble, sus instalaciones y bienes.',
-            '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por personas que me acompañen.',
-            '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de permanencia, ya que el uso es estrictamente temporario.',
-            '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al propietario a conservar una copia de mi DNI para fines de seguridad.'
-        ];
-        
-        const textBlock = declaration.join('\n\n');
-        const splitText = doc.splitTextToSize(textBlock, pageW - (margin * 2) - 6);
-        doc.rect(margin, yPos - 4, pageW - (margin * 2), (splitText.length * 4) + 12);
-        doc.text(splitText, margin + 3, yPos);
-        yPos += (splitText.length * 4) + 15;
-
-
-        // Sección: Datos del Huésped
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text('DATOS PERSONALES DEL CONTRATANTE', margin, yPos);
-        yPos += 4;
-        doc.rect(margin, yPos, pageW - (margin * 2), 40);
-        yPos += 8;
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(10);
-        doc.text(`Nombre y apellido: ${r.guestName || '__________________________________'}`, margin + 3, yPos);
-        yPos += 8;
-        doc.text(`DNI: ${r.guestDni || '________________'}`, margin + 3, yPos);
-        doc.text(`Teléfono: ${r.guestPhone1 || '________________'}`, pageW / 2, yPos);
-        yPos += 8;
-        doc.text(`Correo electrónico: ${r.guestEmail || '__________________________________'}`, margin + 3, yPos);
-        yPos += 8;
-        doc.text(`Cantidad de personas que se hospedan: ${r.numGuests || '____'}`, margin + 3, yPos);
-        yPos += 20;
-
-        // Sección: Firmas
-        yPos = pageH - 40;
-        doc.text('Firma del huésped:', margin, yPos);
-        doc.line(margin + 40, yPos, margin + 100, yPos);
-        doc.text('Firma del propietario/responsable:', pageW / 2, yPos);
-        doc.line(pageW / 2 + 60, yPos, pageW - margin, yPos);
-
-
-        doc.save(`Formulario-Ingreso-${r.guestName.replace(/ /g, '_')}.pdf`);
-
-    } catch (error) {
-        console.error("Error al generar el PDF:", error);
-        alert(`Ocurrió un error al generar el PDF: ${error.message}`);
-    }
+    };
+    
+    // Cargar la imagen desde la URL, convertirla a Base64 y luego llamar a createPdf
+    const img = new Image();
+    img.crossOrigin = "Anonymous"; // Necesario si la imagen está en un dominio diferente
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.naturalWidth;
+        canvas.height = this.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(this, 0, 0);
+        const dataURL = canvas.toDataURL('image/jpeg');
+        createPdf(dataURL);
+    };
+    img.onerror = function() {
+        console.error("No se pudo cargar la imagen del logo desde la URL:", LOGO_URL);
+        alert("No se pudo cargar el logo. Se generará el PDF sin él.");
+        createPdf(null); // Generar PDF sin el logo si falla la carga
+    };
+    img.src = LOGO_URL;
 }
+
 
 
 // --- Lógica de Autenticación de Google ---
@@ -1174,3 +1150,4 @@ init();
 </script>
 </body>
 </html>
+

@@ -6,6 +6,7 @@
 <title>Reservas Temporarias</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 /* ======  CSS ====== */
@@ -156,12 +157,10 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
   <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
   <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
   <button id="backupBtn" class="action-btn" style="background-color: #f39c12;" onclick="handleBackup()">Back-up</button>
-  <!-- MODIFICACIÓN: Botones separados para envío automático y manual -->
   <button class="action-btn" style="background-color: #075e54;" onclick="sendGuestFormAuto()">Enviar Form. Huésped Automático</button>
   <button class="action-btn" style="background-color: #128C7E;" onclick="sendGuestFormManual()">Enviar Form. Huésped Manual</button>
 </footer>
 
-<!-- Modal de Reservas -->
 <div id="modalOverlay" class="modal-overlay hidden">
   <div class="modal-content">
     <h2 id="modalTitle">Nueva reserva</h2>
@@ -211,6 +210,7 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
       <textarea id="notes" placeholder="Notas adicionales..." class="full-width"></textarea>
       <input type="hidden" id="reservationId" />
       <div class="modal-actions full-width">
+        <button type="button" id="generatePdfBtn" class="action-btn secondary hidden" onclick="generateGuestFormPDF()" style="margin-right: auto; background-color: #8e44ad;">Generar Formulario de Ingreso</button>
         <button type="button" id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
         <button type="button" class="action-btn secondary" onclick="closeModal()">Cerrar</button>
         <button type="submit" id="saveBtn" class="action-btn">Guardar</button>
@@ -219,7 +219,6 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
   </div>
 </div>
 
-<!-- Modal de Gestión de Gastos (ABM) -->
 <div id="expensesAbmModal" class="modal-overlay hidden">
   <div class="modal-content">
     <h2 id="expensesModalTitle">Gestión de Gastos</h2>
@@ -253,7 +252,6 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
   </div>
 </div>
 
-<!-- Modal de Visualización de Gastos -->
 <div id="expensesVisualModal" class="modal-overlay hidden">
   <div class="modal-content">
     <h2 id="expensesVisualModalTitle">Resumen de Gastos</h2>
@@ -357,6 +355,7 @@ function openModal(pref) {
     document.getElementById('reservationForm').reset();
     document.getElementById('reservationId').value = '';
     document.getElementById('deleteBtn').classList.add('hidden');
+    document.getElementById('generatePdfBtn').classList.add('hidden'); // Ocultar botón PDF en nueva reserva
     if (pref) {
         document.getElementById('propertySelect').value = pref.property;
         document.getElementById('checkInDate').value = pref.date;
@@ -409,6 +408,7 @@ function openEdit(id) {
     const parkingSel = document.getElementById('parkingSelect');
     if (parkingSel) parkingSel.value = (r.cochera === 'S' || r.cochera === 'N') ? r.cochera : '';
     document.getElementById('deleteBtn').classList.remove('hidden');
+    document.getElementById('generatePdfBtn').classList.remove('hidden'); // Mostrar botón PDF al editar
     
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
@@ -854,8 +854,6 @@ function sendWhatsAppSummary() {
     phoneNumbers.forEach(number => { if (number) { const whatsappUrl = `https://wa.me/${number}?text=${encodedMessage}`; window.open(whatsappUrl, '_blank'); } });
 }
 
-// --- MODIFICACIÓN: Funciones separadas para envío de formulario ---
-
 function sendGuestFormAuto() {
     const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
     if (!phone || phone.trim() === '') return;
@@ -891,6 +889,112 @@ function sendGuestFormManual() {
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
+}
+
+// --- MODIFICACIÓN: Nueva función para generar el PDF ---
+function generateGuestFormPDF() {
+    const { jsPDF } = window.jspdf;
+    const id = document.getElementById('reservationId').value;
+    const r = reservas.find(res => res.id === id);
+    if (!r) {
+        alert('No se encontró la reserva para generar el formulario.');
+        return;
+    }
+
+    try {
+        const doc = new jsPDF();
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const [y, m, d] = dateString.split('-');
+            return `${d}/${m}/${y}`;
+        };
+
+        const getAddress = (property) => {
+            if (property === 'beltran4' || property === 'beltran8') return 'Beltran 35';
+            if (property === 'directorio8') return 'Directorio 1135';
+            return '';
+        };
+
+        const getCheckoutDate = (dateString) => {
+            if (!dateString) return '';
+            const checkout = new Date(dateString + 'T00:00:00');
+            checkout.setDate(checkout.getDate() + 1); // Sumar un día
+            const d = String(checkout.getDate()).padStart(2, '0');
+            const m = String(checkout.getMonth() + 1).padStart(2, '0');
+            const y = checkout.getFullYear();
+            return `${d}/${m}/${y} (11:00 AM)`;
+        };
+
+        // --- Contenido del PDF ---
+        let yPos = 20; // Posición vertical inicial
+        const xMargin = 15;
+        const lineSpacing = 7;
+
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Responsabilidad por Uso del Departamento - Alquiler Temporario', xMargin, yPos);
+        yPos += lineSpacing * 2;
+        
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        
+        doc.text(`Lugar del hospedaje: CABA`, xMargin, yPos);
+        yPos += lineSpacing;
+        doc.text(`Fecha de ingreso: ${formatDate(r.checkIn)}`, xMargin, yPos);
+        yPos += lineSpacing;
+        doc.text(`Fecha de egreso: ${getCheckoutDate(r.checkOut)}`, xMargin, yPos);
+        yPos += lineSpacing;
+        doc.text(`Dirección del departamento: ${getAddress(r.property)}`, xMargin, yPos);
+        yPos += lineSpacing * 2;
+
+        doc.text('Yo, el/la abajo firmante, declaro que:', xMargin, yPos);
+        yPos += lineSpacing * 1.5;
+
+        const declaration = [
+            '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o',
+            '   temporarios.',
+            '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble,',
+            '   sus instalaciones y bienes.',
+            '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por',
+            '   personas que me acompañen.',
+            '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de',
+            '   permanencia, ya que el uso es estrictamente temporario.',
+            '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al',
+            '   propietario a conservar una copia de mi DNI para fines de seguridad.'
+        ];
+
+        declaration.forEach(line => {
+            doc.text(line, xMargin, yPos);
+            yPos += lineSpacing;
+        });
+
+        yPos += lineSpacing * 2;
+        
+        const guestData = [
+            `Nombre y apellido: ${r.guestName || ''}`,
+            `DNI: ${r.guestDni || ''}`,
+            `Teléfono: ${r.guestPhone1 || ''}`,
+            `Correo electrónico: ${r.guestEmail || ''}`,
+            `Cantidad de personas que se hospedan: ${r.numGuests || ''}`
+        ];
+
+        guestData.forEach(line => {
+            doc.text(line, xMargin, yPos);
+            yPos += lineSpacing * 1.5;
+        });
+
+        yPos += lineSpacing * 4;
+        
+        doc.text('Firma del huésped: _________________________', xMargin, yPos);
+        yPos += lineSpacing * 2;
+        doc.text('Firma del propietario/responsable: _________________________', xMargin, yPos);
+
+        doc.save(`Formulario-Ingreso-${r.guestName.replace(/ /g, '_')}.pdf`);
+
+    } catch (error) {
+        console.error("Error al generar el PDF:", error);
+        alert(`Ocurrió un error al generar el PDF: ${error.message}`);
+    }
 }
 
 
@@ -993,9 +1097,10 @@ function init() {
     window.sendWhatsAppSummary = sendWhatsAppSummary;
     window.handleDeletePhoto = handleDeletePhoto;
     window.handleBackup = handleBackup;
-    // MODIFICACIÓN: Se añaden las nuevas funciones al scope global
     window.sendGuestFormAuto = sendGuestFormAuto;
     window.sendGuestFormManual = sendGuestFormManual;
+    // MODIFICACIÓN: Se añade la nueva función al scope global
+    window.generateGuestFormPDF = generateGuestFormPDF;
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

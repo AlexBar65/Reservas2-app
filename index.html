@@ -281,14 +281,21 @@ const props = ['beltran4', 'beltran8', 'directorio8'];
 const propNames = { beltran4: 'Beltrán 4º', beltran8: 'Beltrán 8º', directorio8: 'Directorio 8º' };
 const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros', 'Comisiones'];
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
-
-let reservas = [];
-let clientes = [];
-let gastos = [];
-let highlightedIds = [];
-let y = new Date().getFullYear(), m = new Date().getMonth();
-let currentSummaryProp = props[0];
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// --- REFACTORIZACIÓN: Objeto de Estado Global ---
+// Este bloque asegura que las variables de estado solo se declaren una vez.
+if (typeof window.appState === 'undefined') {
+    window.appState = {
+        reservas: [],
+        clientes: [],
+        gastos: [],
+        highlightedIds: [],
+        y: new Date().getFullYear(),
+        m: new Date().getMonth(),
+        currentSummaryProp: props[0]
+    };
+}
 
 // --- Utilidad mínima para detectar expiración de token ---
 function authExpired(err){
@@ -298,12 +305,12 @@ function authExpired(err){
 }
 
 // --- Lógica de Renderizado y UI ---
-function monthLabel() { document.getElementById('monthLabel').textContent = `${monthNames[m]} ${y}`; }
+function monthLabel() { document.getElementById('monthLabel').textContent = `${monthNames[appState.m]} ${appState.y}`; }
 function genGrid(Y, M) { const first=new Date(Y,M,1), last=new Date(Y,M+1,0); const start=((first.getDay()+6)%7), days=last.getDate(), out=[]; let week=Array(7).fill(null),d=1; for(let i=0;i<7;i++){if(i>=start)week[i]=new Date(Y,M,d++);} out.push(week); while(d<=days){week=Array(7).fill(null);for(let i=0;i<7&&d<=days;i++)week[i]=new Date(Y,M,d++);out.push(week);} while(out.length<6)out.push(Array(7).fill(null)); return out; }
-function render(prop) { const cont = document.getElementById('cal-' + prop); cont.innerHTML = ''; const tbl = document.createElement('table'); tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>'; const tbody = document.createElement('tbody'); genGrid(y, m).forEach(week => { const tr = document.createElement('tr'); week.forEach(day => { const td = document.createElement('td'); if (day) { td.innerHTML = `<div class="date-number">${day.getDate()}</div>`; const ds = day.toISOString().split('T')[0]; reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled') .forEach(r => { const ev = document.createElement('div'); const platformInfo = r.platform || 'Otra'; if (r.total === 0) { ev.className = 'event status-bonif'; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`; } else { ev.className = `event status-${r.status}`; let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : ''; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`; } if (r.currency === 'Dolares') ev.classList.add('currency-dolares'); if (highlightedIds.includes(r.id)) ev.classList.add('highlight'); ev.onclick = e => { e.stopPropagation(); openEdit(r.id); }; ev.title = r.notes || 'Sin notas adicionales'; td.appendChild(ev); }); td.onclick = () => openModal({ property: prop, date: ds }); } tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); cont.appendChild(tbl); }
+function render(prop) { const cont = document.getElementById('cal-' + prop); cont.innerHTML = ''; const tbl = document.createElement('table'); tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>'; const tbody = document.createElement('tbody'); genGrid(appState.y, appState.m).forEach(week => { const tr = document.createElement('tr'); week.forEach(day => { const td = document.createElement('td'); if (day) { td.innerHTML = `<div class="date-number">${day.getDate()}</div>`; const ds = day.toISOString().split('T')[0]; appState.reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled') .forEach(r => { const ev = document.createElement('div'); const platformInfo = r.platform || 'Otra'; if (r.total === 0) { ev.className = 'event status-bonif'; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`; } else { ev.className = `event status-${r.status}`; let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : ''; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`; } if (r.currency === 'Dolares') ev.classList.add('currency-dolares'); if (appState.highlightedIds.includes(r.id)) ev.classList.add('highlight'); ev.onclick = e => { e.stopPropagation(); openEdit(r.id); }; ev.title = r.notes || 'Sin notas adicionales'; td.appendChild(ev); }); td.onclick = () => openModal({ property: prop, date: ds }); } tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); cont.appendChild(tbl); }
 function renderAll(){props.forEach(render);refreshList();monthLabel();calculateFinancialSummary();}
 function switchCalendar(p){props.forEach(pr=>{ document.getElementById('cal-'+pr).classList.toggle('hidden',pr!==p); document.getElementById(`btn${pr.charAt(0).toUpperCase() + pr.slice(1)}`).classList.toggle('active',pr===p);});}
-function changeMonth(delta){m+=delta;if(m<0){m=11;y--;}else if(m>11){m=0;y++;}renderAll();}
+function changeMonth(delta){appState.m+=delta;if(appState.m<0){appState.m=11;appState.y--;}else if(appState.m>11){appState.m=0;appState.y++;}renderAll();}
 
 function refreshList() {
     const list = document.getElementById('checkList');
@@ -316,15 +323,15 @@ function refreshList() {
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
     const generateHtmlForItem = (reservation) => {
-        const client = clientes.find(c => c.name.toLowerCase() === reservation.guestName.toLowerCase());
+        const client = appState.clientes.find(c => c.name.toLowerCase() === reservation.guestName.toLowerCase());
         const photoLink = client && client.photoId
             ? `<a href="https://drive.google.com/uc?id=${client.photoId}" target="_blank" class="photo-link" title="Ver foto del cliente"><img src="https://drive.google.com/uc?id=${client.photoId}" class="list-thumbnail" alt="Foto"></a>`
             : '';
         return `${reservation.guestName} (${propNames[reservation.property]})${photoLink}`;
     };
 
-    const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
-    const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
+    const checkInsToday = appState.reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
+    const checkOutsToday = appState.reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
     const todaySection = document.createElement('div');
     todaySection.innerHTML = `<strong>Hoy (${todayStr})</strong><br>`;
     if (checkInsToday.length === 0 && checkOutsToday.length === 0) {
@@ -335,8 +342,8 @@ function refreshList() {
     }
     list.appendChild(todaySection);
 
-    const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
-    const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
+    const checkInsTomorrow = appState.reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
+    const checkOutsTomorrow = appState.reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
     const tomorrowSection = document.createElement('div');
     tomorrowSection.innerHTML = `<br><strong>Mañana (${tomorrowStr})</strong><br>`;
     if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) {
@@ -377,7 +384,7 @@ function openModal(pref) {
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
 
 function openEdit(id) {
-    const r = reservas.find(x => x.id === id);
+    const r = appState.reservas.find(x => x.id === id);
     if (!r) return;
     openModal();
     document.getElementById('modalTitle').textContent = 'Editar reserva';
@@ -411,7 +418,7 @@ function openEdit(id) {
     document.getElementById('generatePdfBtn').classList.remove('hidden'); // Mostrar botón PDF al editar
     
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
-    const client = clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
+    const client = appState.clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
     if (client && client.photoId) {
         showPhotoPreview(client.photoId);
     } else {
@@ -420,13 +427,13 @@ function openEdit(id) {
 }
 
 function formatNumber(num) { return Math.round(num).toLocaleString('es-AR'); }
-function handleSearch() { const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } highlightedIds = reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = reservas.find(r => r.id === highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); y = checkInDate.getFullYear(); m = checkInDate.getMonth(); } } renderAll(); }
-function clearSearch() { document.getElementById('searchInput').value = ''; highlightedIds = []; renderAll(); }
-function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
+function handleSearch() { const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } appState.highlightedIds = appState.reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(appState.highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = appState.reservas.find(r => r.id === appState.highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); appState.y = checkInDate.getFullYear(); appState.m = checkInDate.getMonth(); } } renderAll(); }
+function clearSearch() { document.getElementById('searchInput').value = ''; appState.highlightedIds = []; renderAll(); }
+function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(appState.clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
 
 function handleClientAutocomplete() {
     const name = document.getElementById('guestName').value;
-    const client = clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
+    const client = appState.clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     if (client) {
         document.getElementById('guestDni').value = client.dni || '';
@@ -551,8 +558,8 @@ async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando...';
-    const originalReservas = JSON.parse(JSON.stringify(reservas));
-    const originalClientes = JSON.parse(JSON.stringify(clientes));
+    const originalReservas = JSON.parse(JSON.stringify(appState.reservas));
+    const originalClientes = JSON.parse(JSON.stringify(appState.clientes));
 
     try {
         calculateDueAmount();
@@ -606,14 +613,14 @@ async function handleSave() {
         if (formData.paid > formData.total) { throw new Error('El monto pagado no puede ser mayor al monto total.'); }
         if (formData.paid >= formData.total && formData.status === 'pending') { formData.status = 'paid'; }
         const newStart = new Date(formData.checkIn + 'T00:00:00'); const newEnd = new Date(formData.checkOut + 'T00:00:00');
-        const isOverlapping = reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd );
+        const isOverlapping = appState.reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd );
         if (isOverlapping) { throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.'); }
 
-        const resIndex = isEditing ? reservas.findIndex(x => x.id === reservationId) : -1;
-        if (resIndex > -1) { reservas[resIndex] = formData; } else { reservas.push(formData); }
+        const resIndex = isEditing ? appState.reservas.findIndex(x => x.id === reservationId) : -1;
+        if (resIndex > -1) { appState.reservas[resIndex] = formData; } else { appState.reservas.push(formData); }
 
-        let clientIndex = clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
-        const existingClient = clientIndex > -1 ? clientes[clientIndex] : null;
+        let clientIndex = appState.clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
+        const existingClient = clientIndex > -1 ? appState.clientes[clientIndex] : null;
         const shouldDeletePhoto = document.getElementById('photoPreviewContainer').dataset.deletePhoto === 'true';
         
         let photoIdToDelete = null;
@@ -642,9 +649,9 @@ async function handleSave() {
         };
 
         if (clientIndex > -1) {
-            clientes[clientIndex] = { ...clientes[clientIndex], ...clientData };
+            appState.clientes[clientIndex] = { ...appState.clientes[clientIndex], ...clientData };
         } else if (formData.guestName) {
-            clientes.push(clientData);
+            appState.clientes.push(clientData);
         }
         
         await save();
@@ -654,14 +661,14 @@ async function handleSave() {
         }
 
         const checkInDate = new Date(formData.checkIn + 'T00:00:00');
-        y = checkInDate.getFullYear();
-        m = checkInDate.getMonth();
+        appState.y = checkInDate.getFullYear();
+        appState.m = checkInDate.getMonth();
         closeModal();
     } catch (error) {
         console.error("Error al guardar la reserva:", error);
         alert(`FALLO AL GUARDAR: ${error.message}. Los cambios no se guardaron. Por favor, revise los datos o inicie sesión de nuevo.`);
-        reservas = originalReservas;
-        clientes = originalClientes;
+        appState.reservas = originalReservas;
+        appState.clientes = originalClientes;
     } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = 'Guardar';
@@ -676,24 +683,24 @@ async function handleDelete() {
         return;
     }
 
-    const originalReservas = [...reservas];
-    const originalClientes = JSON.parse(JSON.stringify(clientes));
+    const originalReservas = [...appState.reservas];
+    const originalClientes = JSON.parse(JSON.stringify(appState.clientes));
 
-    const reservationToDelete = reservas.find(r => r.id === id);
+    const reservationToDelete = appState.reservas.find(r => r.id === id);
     if (!reservationToDelete) return;
 
-    reservas = reservas.filter(r => r.id !== id);
+    appState.reservas = appState.reservas.filter(r => r.id !== id);
 
     const guestName = reservationToDelete.guestName;
     let photoIdToDelete = null;
 
-    const hasMoreReservations = reservas.some(r => r.guestName.toLowerCase() === guestName.toLowerCase());
+    const hasMoreReservations = appState.reservas.some(r => r.guestName.toLowerCase() === guestName.toLowerCase());
 
     if (!hasMoreReservations) {
-        const clientIndex = clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
-        if (clientIndex > -1 && clientes[clientIndex].photoId) {
-            photoIdToDelete = clientes[clientIndex].photoId;
-            clientes[clientIndex].photoId = null;
+        const clientIndex = appState.clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
+        if (clientIndex > -1 && appState.clientes[clientIndex].photoId) {
+            photoIdToDelete = appState.clientes[clientIndex].photoId;
+            appState.clientes[clientIndex].photoId = null;
         }
     }
 
@@ -706,8 +713,8 @@ async function handleDelete() {
         }
 
     } catch (error) {
-        reservas = originalReservas;
-        clientes = originalClientes;
+        appState.reservas = originalReservas;
+        appState.clientes = originalClientes;
         console.error('Error al guardar la eliminación:', error);
         alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
     } finally {
@@ -717,44 +724,44 @@ async function handleDelete() {
 }
 
 async function save() {
-    localStorage.setItem('reservas', JSON.stringify(reservas));
-    localStorage.setItem('clientes', JSON.stringify(clientes));
-    localStorage.setItem('gastos', JSON.stringify(gastos));
+    localStorage.setItem('reservas', JSON.stringify(appState.reservas));
+    localStorage.setItem('clientes', JSON.stringify(appState.clientes));
+    localStorage.setItem('gastos', JSON.stringify(appState.gastos));
     await Promise.all([
-        saveData(RESERVAS_FILE_ID, reservas),
-        saveData(CLIENTS_FILE_ID, clientes),
-        saveData(GASTOS_FILE_ID, gastos)
+        saveData(RESERVAS_FILE_ID, appState.reservas),
+        saveData(CLIENTS_FILE_ID, appState.clientes),
+        saveData(GASTOS_FILE_ID, appState.gastos)
     ]);
 }
 
 // --- Lógica de Módulo de Gastos ---
-function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[m]} ${y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
+function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[appState.m]} ${appState.y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
 function closeExpensesABM() { document.getElementById('expensesAbmModal').classList.add('hidden'); }
 function populateExpensesFormDropdowns() { const deptoSelect = document.getElementById('expDepto'); deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join(''); const typeSelect = document.getElementById('expType'); typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join(''); }
-function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
-function resetExpensesForm() { document.getElementById('expensesForm').reset(); document.getElementById('expenseId').value = ''; const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expPeriodo').value = periodo; }
-async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value) }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos.'); return; } const index = gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { gastos[index] = gastoData; } else { gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); calculateFinancialSummary(); resetExpensesForm(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
-function handleEditGasto(id) { const gasto = gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; }
-async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; gastos = gastos.filter(g => g.id !== id); try { await save(); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
-function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${y}${(m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[m]} ${y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
+function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; appState.gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
+function resetExpensesForm() { document.getElementById('expensesForm').reset(); document.getElementById('expenseId').value = ''; const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expPeriodo').value = periodo; }
+async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value) }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos.'); return; } const index = appState.gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { appState.gastos[index] = gastoData; } else { appState.gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); calculateFinancialSummary(); resetExpensesForm(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
+function handleEditGasto(id) { const gasto = appState.gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; }
+async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; appState.gastos = appState.gastos.filter(g => g.id !== id); try { await save(); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
+function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
 // --- Lógica Financiera y Exportación ---
 function calculateFinancialSummary(selectedPropOverride = null) {
     if (selectedPropOverride) {
-        currentSummaryProp = selectedPropOverride;
+        appState.currentSummaryProp = selectedPropOverride;
     }
 
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
-    const currentPeriodo = `${y}${(m + 1).toString().padStart(2, '0')}`;
-    const firstDayOfMonth = new Date(y, m, 1);
-    const lastDayOfMonth = new Date(y, m + 1, 0);
+    const currentPeriodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`;
+    const firstDayOfMonth = new Date(appState.y, appState.m, 1);
+    const lastDayOfMonth = new Date(appState.y, appState.m + 1, 0);
 
     let grandTotal = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0 };
     const byProperty = {};
     props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0, count: 0 }; });
 
-    reservas.filter(r => { const checkIn = new Date(r.checkIn + 'T00:00:00'); return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled'; })
+    appState.reservas.filter(r => { const checkIn = new Date(r.checkIn + 'T00:00:00'); return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled'; })
     .forEach(r => {
         const rate = r.currency === 'Dolares' ? exchangeRate : 1;
         const totalArs = r.total * rate;
@@ -768,7 +775,7 @@ function calculateFinancialSummary(selectedPropOverride = null) {
         }
     });
 
-    gastos.filter(g => g.periodo === currentPeriodo).forEach(g => {
+    appState.gastos.filter(g => g.periodo === currentPeriodo).forEach(g => {
         grandTotal.expenses += g.monto;
         if (byProperty[g.departamento]) {
             byProperty[g.departamento].expenses += g.monto;
@@ -800,16 +807,16 @@ function calculateFinancialSummary(selectedPropOverride = null) {
             breakdownContainer.appendChild(propElement);
         });
     } else {
-        const propData = byProperty[currentSummaryProp];
-        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === currentSummaryProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
+        const propData = byProperty[appState.currentSummaryProp];
+        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === appState.currentSummaryProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
     }
 }
 function exportData() {
-    if (!reservas.length) { alert('No hay datos para exportar.'); return; }
+    if (!appState.reservas.length) { alert('No hay datos para exportar.'); return; }
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
     const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
     const csvRows = [csvHeader];
-    reservas.forEach(r => {
+    appState.reservas.forEach(r => {
         const checkInDate = new Date(r.checkIn + 'T00:00:00');
         const year = checkInDate.getFullYear();
         const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
@@ -837,10 +844,10 @@ function sendWhatsAppSummary() {
     const todayStr = today.toISOString().split('T')[0];
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     const yesterdayStr = yesterday.toISOString().split('T')[0];
-    const checkInsToday = reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
-    const checkOutsToday = reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
-    const checkInsTomorrow = reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
-    const checkOutsTomorrow = reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
+    const checkInsToday = appState.reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
+    const checkOutsToday = appState.reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
+    const checkInsTomorrow = appState.reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
+    const checkOutsTomorrow = appState.reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
     let message = `*Resumen de Movimientos* 🛎️\n\n`;
     message += `*HOY (${today.toLocaleDateString('es-AR')})*\n`;
     if (checkInsToday.length > 0) { message += `➡️ *Check-in:* ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
@@ -894,116 +901,10 @@ function sendGuestFormManual() {
 
 // --- MODIFICACIÓN: Nueva función para generar el PDF ---
 function generateGuestFormPDF() {
-    // --- VERSIÓN ANTERIOR (ESTÁNDAR) ---
-    /*
-    const { jsPDF } = window.jspdf;
-    const id = document.getElementById('reservationId').value;
-    const r = reservas.find(res => res.id === id);
-    if (!r) {
-        alert('No se encontró la reserva para generar el formulario.');
-        return;
-    }
-
-    try {
-        const doc = new jsPDF();
-        const formatDate = (dateString) => {
-            if (!dateString) return '';
-            const [y, m, d] = dateString.split('-');
-            return `${d}/${m}/${y}`;
-        };
-
-        const getAddress = (property) => {
-            if (property === 'beltran4' || property === 'beltran8') return 'Beltran 35';
-            if (property === 'directorio8') return 'Directorio 1135';
-            return '';
-        };
-
-        const getCheckoutDate = (dateString) => {
-            if (!dateString) return '';
-            const checkout = new Date(dateString + 'T00:00:00');
-            checkout.setDate(checkout.getDate() + 1); // Sumar un día
-            const d = String(checkout.getDate()).padStart(2, '0');
-            const m = String(checkout.getMonth() + 1).padStart(2, '0');
-            const y = checkout.getFullYear();
-            return `${d}/${m}/${y} (11:00 AM)`;
-        };
-
-        // --- Contenido del PDF ---
-        let yPos = 20; // Posición vertical inicial
-        const xMargin = 15;
-        const lineSpacing = 7;
-
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('Responsabilidad por Uso del Departamento - Alquiler Temporario', xMargin, yPos);
-        yPos += lineSpacing * 2;
-        
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'normal');
-        
-        doc.text(`Lugar del hospedaje: CABA`, xMargin, yPos);
-        yPos += lineSpacing;
-        doc.text(`Fecha de ingreso: ${formatDate(r.checkIn)}`, xMargin, yPos);
-        yPos += lineSpacing;
-        doc.text(`Fecha de egreso: ${getCheckoutDate(r.checkOut)}`, xMargin, yPos);
-        yPos += lineSpacing;
-        doc.text(`Dirección del departamento: ${getAddress(r.property)}`, xMargin, yPos);
-        yPos += lineSpacing * 2;
-
-        doc.text('Yo, el/la abajo firmante, declaro que:', xMargin, yPos);
-        yPos += lineSpacing * 1.5;
-
-        const declaration = [
-            '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o',
-            '   temporarios.',
-            '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble,',
-            '   sus instalaciones y bienes.',
-            '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por',
-            '   personas que me acompañen.',
-            '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de',
-            '   permanencia, ya que el uso es estrictamente temporario.',
-            '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al',
-            '   propietario a conservar una copia de mi DNI para fines de seguridad.'
-        ];
-
-        declaration.forEach(line => {
-            doc.text(line, xMargin, yPos);
-            yPos += lineSpacing;
-        });
-
-        yPos += lineSpacing * 2;
-        
-        const guestData = [
-            `Nombre y apellido: ${r.guestName || ''}`,
-            `DNI: ${r.guestDni || ''}`,
-            `Teléfono: ${r.guestPhone1 || ''}`,
-            `Correo electrónico: ${r.guestEmail || ''}`,
-            `Cantidad de personas que se hospedan: ${r.numGuests || ''}`
-        ];
-
-        guestData.forEach(line => {
-            doc.text(line, xMargin, yPos);
-            yPos += lineSpacing * 1.5;
-        });
-
-        yPos += lineSpacing * 4;
-        
-        doc.text('Firma del huésped: _________________________', xMargin, yPos);
-        yPos += lineSpacing * 2;
-        doc.text('Firma del propietario/responsable: _________________________', xMargin, yPos);
-
-        doc.save(`Formulario-Ingreso-${r.guestName.replace(/ /g, '_')}.pdf`);
-
-    } catch (error) {
-        console.error("Error al generar el PDF:", error);
-        alert(`Ocurrió un error al generar el PDF: ${error.message}`);
-    }
-    */
-    
     // --- NUEVA VERSIÓN (DISEÑO PROFESIONAL) ---
     const { jsPDF } = window.jspdf;
     const pdfGenReservationId = document.getElementById('reservationId').value;
-    const pdfGenCurrentReservation = reservas.find(res => res.id === pdfGenReservationId);
+    const pdfGenCurrentReservation = appState.reservas.find(res => res.id === pdfGenReservationId);
 
     if (!pdfGenCurrentReservation) {
         alert('No se encontró la reserva para generar el formulario.');
@@ -1013,9 +914,7 @@ function generateGuestFormPDF() {
     try {
         const pdfNewDoc = new jsPDF({ unit: 'mm', format: 'a4' });
         
-        // --- AJUSTE 2: LOGO (Convertido a Base64) ---
-        // Se almacena como una constante local para evitar conflictos. ESTA ES LA VERSIÓN CORREGIDA.
-        const pdfNewLogoBase64 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIbGNtcwIQAABtbnRyUkdCIFhZWiAH4gADABQACQAOAB1hY3NwTVNGVAAAAABzYXdzY3RybAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWhhbmRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACYU2F3IGRlc2MAAAAAAAAAAAAAAFlzUkdCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/bAEMABgQFBgUEBgYFBgcHBggKEAoKCQkKFA4PDBAXFBgYFxQWFhodJR8aGyMcFhYgLCAjJicpKikmISOOExc4PT8+Pz//bAEMBBgcHBwcJCAgKFA4NDg4UDg4ODg4UDg4ODg4UDg4ODg4UDg4ODg4UDg4ODg4UDg4ODg4UDg4ODg4UDg4ODg4ODv/CABEIAKAAoAMBIgACEQEDEQH/xAAbAAEAAgMBAQAAAAAAAAAAAAAABQYDBAcCAf/EABkBAQEBAQEBAAAAAAAAAAAAAAABAgMEBf/aAAwDAQACEAMQAAAB6QAAAAAAAAAAAAAAAAAABFWyKtkVbIq2eFmIq2RVsirZFWSNZMAAAAAAAAAAAAAAAAAAHGvV2bU52lJjdJjdJjdJjdJhcxjdJjdJjdJjdA4qAAAAAAAAAAAAAAAAAHlaRH1mYdZf9i3tGvNqS3SWnSWnSWnSWmU9JadJadJadJb8F2AAAAAAAAAAAAAAAAIqp8pY22zVpDnpDnpDnpDnpC7hnpDnpDnpDnpAqpAAAAAAAAAAAAAAAAWkO+XbHnpDnpDnpDnpC7hnpDnpDnpDnpAtIAAAAAAAAAAAAAAAADn3l2/XpYf0x9AAAAAAAAdzY/WfP0AAAAAAAAAAAAAAByb/o8b8fR+j4fp+Z6gAAAAAACS3fO+l8j63y/o/P6gAAAAAAAAAAAAAA5m2+d9D5/0/l/S+V9IAAAPzvp/I+t8j6/yPr/ACfpAAAAAPzvp/I+t8j6/yPr/I+kAAAAAAADm7X5v0vk/S+V9L5n1AAAAAPzvrfN+n836fzvp/N+oAAAAAAADl7n5n1PlfV+V9P5n1gAAAAD876Hzfr/AD/o/O+h84AAAAAAAD4v2vifZ+L9n4n3Pi/ZAAAAA+D9/4H3/gfA+/8AA+/gAAAAAAAAAD4f3vgff+B8H7/wPv/AAPuAAAAD4v2vifZ+L9n4n3Pi/YAAAAAAAHw/vfA+/8AA+D9/wCB9/4H3AAAAB8X7XxPs/F+z8T7nxfsAAAAAAAD/8QAIxAAAQQCAQUBAQAAAAAAAAAABAACAwYDBAUHEBITIDATB//aAAgBAQABBQL/AMoA4R3E8i3o/R+j9H6P0fo/Q4A4R3E0q3h4vF4vF4vF4vF4kQjiIVuG+TzKqKqKqKqKqKqKqKkQqIq3jfZ5XWWWWWWWWWWWWRCsiLfaN8vl27du3bt27du3bt27ZEWyK37Rvl83h4vF4vF4vF4vEiEcRG34Rvl8Xh4PDweHg8PB4kQiEQiGv45y/rLfrw4vY/b+OW889h6/7fyX/mB6+V7v5jHjHlHk4Y8g7hHkE8I8ijxjyDy8MeQdwn5DPCPIo8Y8/8AL4Y8/wDcH5DPCPIvP4xy/rLfrw4vY/b+OW889h6/7fyX/mB6+V7v5j8/5xHjBnhBnjBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnhBnh-4L+oF1gB5u7T2w9wPZz3S9i/YX2m9zfZL1a9ZPaH/X38/5x/p/9gL0C9i/Z/139n/aT3j93Pbj0q9Ivc/z0C/qBdYAebm7w/wDgfV5H/8AEy9sPcH2c90vYv2F9pvc32S9WvWT2h/19/L+fV/48/8AzH+n/wBgL0C9i/Z/139n/aT3j93Pbj0q9Ivc/wA/Av6gXWAHm5u8M+0r+eP/ABQ/b8D6vI/+Jl7Ye4Hs57pexfuL7Te5vsl6tesntD/r7+XV+b8/n8/n8/V+r+fP/wA5/p/9gL0C9i/Z/wBd/Z/2k94/dz249KvSL3P8/Av6gXWAHm5u8M+0u9T/AI1f8fA+ryP/AOJl7Ye4Hs57pexfuL7Te5vsl6tesntD/r7+XV+b9Xq/5/V6v58/V+r+f/zH+n/2AvQL2L9n/Xf2f9pPeP3c9uPSr0i9z/P//EABwRAQEAAgMBAQEAAAAAAAAAAAABERICITBAQVD/2gAIAQMBAT8B+1E8T5ycnJycnJz8r2E+F7Q+H5Ue/gX3h8Hy8vLy8vLy+F4l4fB84S+dIQhCEIQhCEIQnwnwhef9S/z+P8A4+f8mX58f6X5Eflv9Ev2R+QvC+Ev2Lw/6ZfjR/p8P8D4Qvh//8QAHBEBAAEFAQEBAAAAAAAAAAAAAAECERIgMBAhUWD/2gAIAQIBAT8B/fKqKqKqKqqqrKqqqqqqqqquFXE50kkn1sT6qSSSSSSdJ9F0xXhCeD/V9v6D4R+p+Efg/Qfg/B8P6HwvhD9R8R+H9H8H//EADMQAAECBAMFBwQDAAAAAAAAAAECAwAEESExBRMgMkFRUnGBECJAQmFykrEzohQHobHB/9oACAEBAAY/Av8AyACiMhA5n5f3/X9f1/X9f1/WcQjYmGojrE/j9R+z9n7P2fs/Z46vYCEc0y62y8qU9hV7Cr2FXsKvYVewq9hV7CE+qY3d1t1uV+w1+w1+w1+w1+w1+w1+w1sR1r9hr9hr9hr9hr9hr9hV3GqY3d9p9uVT7Cv2FXsKvYVewq9hV7CD6mN3WnX35lPsKvYVewq9hV7Cr2FXsIPCqY3dX7P2fs/Z+z9n7PHl7ARzTKy3tE/j9f1/X9f1/X9ZxCLAmGojrE/g9mG9pXz+VnN2sT3i/pX+U/8A31fM5Wc3axe7f5P8n8P9T+H8v5j+T/P5D+X/AL8T1d+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1-yv+qQ/wA8xY36n0w/f8x49/zP/q/yH2/Jd+i/08N4R7sPvQ+9H7YfbD70e7D7ofTD1I9KPb/AL0n1fX1e/8AR39P/p1v/qQ/zxFjfql+6P2w9iPch9CH0o9pX1X8uX7pPtP7J/R/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/2J8F+yP2w9iPch9CH0o9pX1X8l/18v3Sfaf2T+j/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/wBifDPw/wB/gX7I/bD2I9yH0IfSj2lfVfyX/X/ry/dJ9p/ZP6P+ffyr/qW+n3Ef8P+vj7if2f6n3EetHpR/Jjf6pD/ADzFjfql+6X/AGJ8M/D/AH+Bfsj9sPYj3IfQh9KPaV9V/Jf9f+vL90n2n9k/o/59/Kv+pb6fcR/w/wCvj7if2f6n3EetHpR/J//EACwQAQABAwMCBQUBAQEBAAAAAAERACExQVFhcYGRobHB0RAg4fDxMEBQYHD/2gAIAQEAAT8h/wDygCq6Q0FqjY/n4H2Pq+p9X1Pq+p9X1OAKrpDQRqdj6sD4/R/j/H+P8f4/x/j+yEaI6yIq+D6uX/AD8/Pz8/Pz8/PzyNqJ6VfL/l+fS9L0vS9L0vS9L0vS9P+T/n0vS9L0vS9L0vS9LzP6eP8Al+vjYvS9L0vS9L0vS9LyjqiOlXy/X/l/gY/H+P8AH+P8f4/x/siOiOsiKng/XxB/n4H2Pq+p9X1Pq+p9X1P/AMd5lPz/AOZ/u/zP7v8AN/z/AEP6v3fz/wBj/P/ABn+D/U/83v9D77J9yffX3N+1X3l/WfdH3D9D9Cvvv7/APp/r/8AQf6D7zL99P2z/D/3+T/c+r/7n/l9z/P/AP/z1q1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1aQyI4G5LwX/g+c88oF4/6z/T+J+P8AgfufeR9pH3sfcj7kfeh+l8T+x+5+4P1eA9B4H3Phv+0ftJ9v6h+z9f8AR+n7T95PtI/Z4j1nj3/r+XhP8r8p5p/x38/L/v0/lI4G5LwX8n/AD7n/l3/AJHnPOPz/rP9P4n4/wCB+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/wBH6ftP3k+0j9nj3nj3/r+Xg/8Ar9p/K+ae/j+fl/36fyEcDcl4L+T/AJD/AMu/8jznm/j9T+J+P+B+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/0fp+0/eT7SP2ePeP2+v8vy8H/1+f9r5p7+P5/wCX/fp/IRwNyXgv5P8AkP8Ay7/yPOeb+P1P4n4/4H7n3kfaR95H3I+5H3ofpfE/sfuft/f6vAeg8D7nw3/aP2k+39Q/Z+v+j9P2n7yfaR+zx7x+31/l+Xg/wdr8/7XzT38fz/y/79P//Z';
+        const pdfNewLogoBase64 = 'data:image/jpeg;base64,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C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1-yv+qQ/wA8xY36n0w/f8x49/zP/q/yH2/Jd+i/08N4R7sPvQ+9H7YfbD70e7D7ofTD1I9KPb/AL0n1fX1e/8AR39P/p1v/qQ/zxFjfql+6P2w9iPch9CH0o9pX1X8uX7pPtP7J/R/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/2J8F+yP2w9iPch9CH0o9pX1X8l/18v3Sfaf2T+j/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/wBifDPw/wB/gX7I/bD2I9yH0IfSj2lfVfyX/X/ry/dJ9p/ZP6P+ffyr/qW+n3Ef8P+vj7if2f6n3EetHpR/Jjf6pD/ADzFjfql+6X/AGJ8M/D/AH+Bfsj9sPYj3IfQh9KPaV9V/Jf9f+vL90n2n9k/o/59/Kv+pb6fcR/w/wCvj7if2f6n3EetHpR/J//EACwQAQABAwMCBQUBAQEBAAAAAAERACExQVFhcYGRobHB0RAg4fDxMEBQYHD/2gAIAQEAAT8h/wDygCq6Q0FqjY/n4H2Pq+p9X1Pq+p9X1OAKrpDQRqdj6sD4/R/j/H+P8f4/x/j+yEaI6yIq+D6uX/AD8/Pz8/Pz8/PzyNqJ6VfL/l+fS9L0vS9L0vS9L0vS9P+T/n0vS9L0vS9L0vS9LzP6eP8Al+vjYvS9L0vS9L0vS9LyjqiOlXy/X/l/gY/H+P8AH+P8f4/x/siOiOsiKng/XxB/n4H2Pq+p9X1Pq+p9X1P/AMd5lPz/AOZ/u/zP7v8AN/z/AEP6v3fz/wBj/P/ABn+D/U/83v9D77J9yffX3N+1X3l/WfdH3D9D9Cvvv7/APp/r/8AQf6D7zL99P2z/D/3+T/c+r/7n/l9z/P/AP/z1q1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1aQyI4G5LwX/g+c88oF4/6z/T+J+P8AgfufeR9pH3sfcj7kfeh+l8T+x+5+4P1eA9B4H3Phv+0ftJ9v6h+z9f8AR+n7T95PtI/Z4j1nj3/r+XhP8r8p5p/x38/L/v0/lI4G5LwX8n/AD7n/l3/AJHnPOPz/rP9P4n4/wCB+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/wBH6ftP3k+0j9nj3nj3/r+Xg/8Ar9p/K+ae/j+fl/36fyEcDcl4L+T/AJD/AMu/8jznm/j9T+J+P+B+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/0fp+0/eT7SP2ePeP2+v8vy8H/1+f9r5p7+P5/wCX/fp/IRwNyXgv5P8AkP8Ay7/yPOeb+P1P4n4/4H7n3kfaR95H3I+5H3ofpfE/sfuft/f6vAeg8D7nw3/aP2k+39Q/Z+v+j9P2n7yfaR+zx7x+31/l+Xg/wdr8/7XzT38fz/y/79P//Z';
 
         const pdfNewMargin = 15;
         const pdfNewPageWidth = pdfNewDoc.internal.pageSize.getWidth();
@@ -1158,9 +1057,9 @@ function updateSigninStatus(isSignedIn) {
     } else {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
-        reservas = [];
-        clientes = [];
-        gastos = [];
+        appState.reservas = [];
+        appState.clientes = [];
+        appState.gastos = [];
         renderAll();
     }
 }
@@ -1177,9 +1076,9 @@ async function loadData(fileId) {
         throw new Error(`No se pudo cargar el archivo ${fileId}.`);
     }
 }
-async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(reservas)); } catch (err) { alert("No se pudieron cargar las reservas desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { renderAll(); } }
-async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(clientes)); } catch (err) { alert("No se pudieron cargar los clientes desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { populateClientsDatalist(); } }
-async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(gastos)); } catch (err) { alert("No se pudieron cargar los gastos desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { calculateFinancialSummary(); } }
+async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { alert("No se pudieron cargar las reservas desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { renderAll(); } }
+async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { alert("No se pudieron cargar los clientes desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { populateClientsDatalist(); } }
+async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { alert("No se pudieron cargar los gastos desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { calculateFinancialSummary(); } }
 async function saveData(fileId, data) { if (!gapi.client.getToken()) { throw new Error("No autenticado. Inicie sesión con Google para guardar."); } const content = JSON.stringify(data, null, 2); try { await gapi.client.request({ path: '/upload/drive/v3/files/' + fileId, method: 'PATCH', params: { uploadType: 'media' }, body: content, }); } catch (error) { console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); if (authExpired(error)) { updateSigninStatus(false); alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); }
         throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); } }
 
@@ -1245,7 +1144,6 @@ function init() {
     window.handleBackup = handleBackup;
     window.sendGuestFormAuto = sendGuestFormAuto;
     window.sendGuestFormManual = sendGuestFormManual;
-    // MODIFICACIÓN: Se añade la nueva función al scope global
     window.generateGuestFormPDF = generateGuestFormPDF;
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();

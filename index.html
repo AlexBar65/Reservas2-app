@@ -301,8 +301,8 @@ const FERIADOS_FILE_ID = '10lfxphwKhZcjBpWSBQFVQuw9be7boMlr';
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
-// --- MODIFICADO: Se declara codeClient en el scope global ---
-let gapiInited = false, gisInited = false, codeClient;
+// --- MODIFICADO: Se declara tokenClient en el scope global para el nuevo flujo ---
+let gapiInited = false, gisInited = false, tokenClient;
 const authBtn = document.getElementById('authBtn'), signoutBtn = document.getElementById('signoutBtn');
 
 // --- LÓGICA DE LA APLICACIÓN ---
@@ -312,13 +312,12 @@ const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad',
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-// --- REFACTORIZACIÓN: Objeto de Estado Global ---
 if (typeof window.appState === 'undefined') {
     window.appState = {
         reservas: JSON.parse(localStorage.getItem('reservas')) || [],
         clientes: JSON.parse(localStorage.getItem('clientes')) || [],
         gastos: JSON.parse(localStorage.getItem('gastos')) || [],
-        feriadosMap: new Map(), // Usamos un Map para búsqueda rápida de feriados
+        feriadosMap: new Map(),
         highlightedIds: [],
         y: new Date().getFullYear(),
         m: new Date().getMonth(),
@@ -326,7 +325,6 @@ if (typeof window.appState === 'undefined') {
     };
 }
 
-// --- Utilidad mínima para detectar expiración de token ---
 function authExpired(err){
   const code = err?.status || err?.result?.error?.code;
   const reason = err?.result?.error?.errors?.[0]?.reason || err?.result?.error?.status;
@@ -444,7 +442,7 @@ function openModal(pref) {
     document.getElementById('reservationForm').reset();
     document.getElementById('reservationId').value = '';
     document.getElementById('deleteBtn').classList.add('hidden');
-    document.getElementById('generatePdfBtn').classList.add('hidden'); // Ocultar botón PDF en nueva reserva
+    document.getElementById('generatePdfBtn').classList.add('hidden');
     if (pref) {
         document.getElementById('propertySelect').value = pref.property;
         document.getElementById('checkInDate').value = pref.date;
@@ -497,7 +495,7 @@ function openEdit(id) {
     const parkingSel = document.getElementById('parkingSelect');
     if (parkingSel) parkingSel.value = (r.cochera === 'S' || r.cochera === 'N') ? r.cochera : '';
     document.getElementById('deleteBtn').classList.remove('hidden');
-    document.getElementById('generatePdfBtn').classList.remove('hidden'); // Mostrar botón PDF al editar
+    document.getElementById('generatePdfBtn').classList.remove('hidden');
     
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
     const client = appState.clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
@@ -532,7 +530,6 @@ function handleClientAutocomplete() {
     }
 }
 
-// --- Lógica de Fotos ---
 function showPhotoPreview(photoId) {
     const container = document.getElementById('photoPreviewContainer');
     const deleteBtn = document.getElementById('deletePhotoBtn');
@@ -566,7 +563,7 @@ function handleDeletePhoto() {
 }
 
 async function uploadPhoto(file) {
-    if (!gapi.client.getToken() || !gapi.client.getToken().access_token) {
+    if (!gapi.client.oauth2.token || !gapi.client.oauth2.token.access_token) {
         throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
     }
     if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
@@ -574,7 +571,7 @@ async function uploadPhoto(file) {
     }
 
     try {
-        const accessToken = gapi.client.getToken().access_token;
+        const accessToken = gapi.client.oauth2.token.access_token;
         const metadata = {
             'name': `${Date.now()}_${file.name}`,
             'parents': [CLIENT_PHOTOS_FOLDER_ID]
@@ -635,7 +632,6 @@ async function deletePhotoFromDrive(fileId) {
 }
 
 
-// --- Lógica de Datos (Guardado/Carga) ---
 async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
@@ -682,7 +678,6 @@ async function handleSave() {
         }
         formData.checkInTime = checkInTime;
         formData.cochera = cocheraVal || '';
-
 
         const photoInput = document.getElementById('guestPhoto');
         let newPhotoId = null;
@@ -828,7 +823,6 @@ async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de qu
 function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
-// --- Lógica Financiera y Exportación ---
 function calculateFinancialSummary(selectedPropOverride = null) {
     if (selectedPropOverride) {
         appState.currentSummaryProp = selectedPropOverride;
@@ -981,7 +975,6 @@ function sendGuestFormManual() {
 }
 
 
-// --- MODIFICACIÓN: Nueva función para generar el PDF ---
 function generateGuestFormPDF() {
     const { jsPDF } = window.jspdf;
     const pdfGenReservationId = document.getElementById('reservationId').value;
@@ -995,7 +988,6 @@ function generateGuestFormPDF() {
     try {
         const pdfNewDoc = new jsPDF({ unit: 'mm', format: 'a4' });
         
-        // --- MODIFICADO: Se elimina el string largo para mejorar rendimiento ---
         const pdfNewLogoBase64 = '';
 
         const pdfNewMargin = 15;
@@ -1029,7 +1021,6 @@ function generateGuestFormPDF() {
             return `${d}/${m}/${y} (11:00 AM)`;
         };
         
-        // --- MODIFICADO: Se agrega un IF para no intentar agregar una imagen vacía ---
         if (pdfNewLogoBase64) {
             const pdfNewLogoWidth = 30;
             const pdfNewLogoHeight = 30;
@@ -1123,11 +1114,9 @@ function generateGuestFormPDF() {
 
 
 // --- Lógica de Autenticación de Google (CORREGIDA) ---
-
-// --- NUEVO: Verificador central para asignar los handlers de forma segura ---
 function setupAuth() {
     if (gapiInited && gisInited) {
-        authBtn.onclick = () => codeClient.requestCode();
+        authBtn.onclick = () => tokenClient.requestAccessToken({ prompt: 'consent' });
         signoutBtn.onclick = handleSignoutClick;
     }
 }
@@ -1142,7 +1131,7 @@ async function initializeGapiClient() {
         discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'], 
     }); 
     gapiInited = true; 
-    setupAuth(); // Llama al verificador cuando GAPI está listo
+    setupAuth();
 }
 
 function gisLoaded() {
@@ -1160,43 +1149,25 @@ function gisLoaded() {
                 renderAll();
             }).catch(error => {
                 console.error("Error cargando datos iniciales:", error);
-                alert("Hubo un error al cargar todos los datos. La aplicación puede no funcionar correctamente.");
+                alert("Hubo un error al cargar todos los datos.");
             });
         }
     };
 
-    codeClient = google.accounts.oauth2.initCodeClient({
+    tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        // --- MODIFICADO: Se cambia a 'popup' para evitar redirección ---
-        ux_mode: 'popup', 
-        callback: (response) => {
-            // Este callback se usa para el modo POPUP. El de 'redirect' usa el de arriba.
-            // El 'token' client y el 'code' client con popup devuelven estructuras diferentes.
-            // El de popup ya devuelve el token directamente.
-             if (response.access_token) {
-                processTokenResponse(response);
-             } else if (response.code) { // Fallback por si devuelve un código en modo popup
-                google.accounts.oauth2.token({
-                    code: response.code,
-                    client_id: CLIENT_ID,
-                    grant_type: 'authorization_code',
-                    // Para popup, redirect_uri debe ser 'postmessage' o estar en blanco
-                    // pero para mayor compatibilidad, lo omitimos si no es necesario.
-                    // O se puede poner "postmessage"
-                    callback: processTokenResponse
-                });
-             }
-        },
+        callback: processTokenResponse,
     });
 
     gisInited = true;
-    setupAuth(); // Llama al verificador cuando GIS está listo
+    setupAuth();
 }
 
+
 function handleSignoutClick() { 
-    const token = gapi.client.getToken(); 
-    if (token !== null) { 
+    const token = gapi.client.oauth2.token;
+    if (token) { 
         google.accounts.oauth2.revoke(token.access_token, () => {
             gapi.client.setToken(''); 
             updateSigninStatus(false);
@@ -1218,6 +1189,7 @@ function updateSigninStatus(isSignedIn) {
         renderAll();
     }
 }
+
 async function loadData(fileId) {
     try {
         const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
@@ -1231,9 +1203,11 @@ async function loadData(fileId) {
         throw new Error(`No se pudo cargar el archivo ${fileId}.`);
     }
 }
+
 async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { console.warn("No se pudieron cargar las reservas desde Google Drive." ); } }
 async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { console.warn("No se pudieron cargar los clientes desde Google Drive." ); } finally { populateClientsDatalist(); } }
 async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { console.warn("No se pudieron cargar los gastos desde Google Drive." ); } finally { calculateFinancialSummary(); } }
+
 async function loadFeriadosData() {
     try {
         const feriadosList = JSON.parse(await loadData(FERIADOS_FILE_ID));
@@ -1257,11 +1231,9 @@ async function loadFeriadosData() {
         }
         localStorage.setItem('feriados', JSON.stringify(feriadosList));
     } catch (err) {
-        console.warn("No se pudieron cargar los feriados desde Google Drive. Se usarán datos locales si existen.", err);
-        // Si falla Drive, intenta cargar desde LocalStorage
+        console.warn("No se pudieron cargar los feriados desde Google Drive.", err);
         const localFeriados = JSON.parse(localStorage.getItem('feriados'));
         if(Array.isArray(localFeriados)) {
-            // Reprocesar para el Map
              localFeriados.forEach(f => {
                 if (f.Fecha) {
                      if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
@@ -1280,10 +1252,29 @@ async function loadFeriadosData() {
         }
     }
 }
-async function saveData(fileId, data) { if (!gapi.client.getToken()) { throw new Error("No autenticado. Inicie sesión con Google para guardar."); } const content = JSON.stringify(data, null, 2); try { await gapi.client.request({ path: '/upload/drive/v3/files/' + fileId, method: 'PATCH', params: { uploadType: 'media' }, body: content, }); } catch (error) { console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); if (authExpired(error)) { updateSigninStatus(false); alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); }
-        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); } }
 
-// --- Lógica de Back-up ---
+async function saveData(fileId, data) { 
+    if (!gapi.client.oauth2.token) { 
+        throw new Error("No autenticado. Inicie sesión con Google para guardar."); 
+    } 
+    const content = JSON.stringify(data, null, 2); 
+    try { 
+        await gapi.client.request({ 
+            path: '/upload/drive/v3/files/' + fileId, 
+            method: 'PATCH', 
+            params: { uploadType: 'media' }, 
+            body: content, 
+        }); 
+    } catch (error) { 
+        console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); 
+        if (authExpired(error)) { 
+            updateSigninStatus(false); 
+            alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); 
+        }
+        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); 
+    } 
+}
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function downloadFile(fileId, fileName) {
@@ -1303,7 +1294,7 @@ async function downloadFile(fileId, fileName) {
 }
 
 async function handleBackup() {
-    if (!gapi.client.getToken()) {
+    if (!gapi.client.oauth2.token) {
         alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
         return;
     }
@@ -1347,7 +1338,6 @@ function init() {
     window.sendGuestFormManual = sendGuestFormManual;
     window.generateGuestFormPDF = generateGuestFormPDF;
     
-    // Carga inicial desde LocalStorage para una experiencia offline más rápida
     const localFeriados = JSON.parse(localStorage.getItem('feriados'));
     if(Array.isArray(localFeriados)) {
         localFeriados.forEach(f => {
@@ -1377,3 +1367,5 @@ init();
 </script>
 </body>
 </html>
+}
+ok

@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Reservas Temporarias</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+/* ======  CSS ====== */
+html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;color:#333}
+.header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#2c3e50;color:#ecf0f1;padding:8px 12px}
+.property-btn{background:#34495e;color:#ecf0f1;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.9rem}
+.property-btn.active{background:#1abc9c}
+.action-btn{background:#2980b9;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:.9rem; transition: background-color 0.3s;}
+.action-btn:disabled { background: #7f8c8d; cursor: not-allowed; }
+.action-btn.secondary{background:#7f8c8d}
+.action-btn.danger{background:#c0392b}
+.month-nav{margin-left:auto;display:flex;gap:4px;align-items:center}
+.month-label{min-width:120px;text-align:center}
+main{padding:10px}
+.check-list{background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px;font-size:.9rem;min-height:60px}
+.badge{display:inline-block;padding:2px 4px;font-size:.7rem;border-radius:3px;margin-right:4px}
+.badge-success{background:#81c784}.badge-danger{background:#e57373;color:#fff}
+.calendar{overflow-x:auto;margin-top:15px}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{border:1px solid #ddd;padding:2px;vertical-align:top;font-size:.75rem;height:85px}
+th {height: 45px;text-align: center;vertical-align: middle;font-weight: bold;font-size: 1rem;}
+.event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word;cursor: pointer;font-size: 0.8rem;}
+.highlight { border: 2px solid #2980b9; box-shadow: 0 0 5px #2980b9; }
+th:nth-child(1){background:#f28c8c;color:#fff}
+th:nth-child(2){background:#e7b97d;color:#fff}
+th:nth-child(3){background:#cfe3a1}
+th:nth-child(4){background:#f1e9a1}
+th:nth-child(5){background:#a0c1e8}
+th:nth-child(6){background:#b79ddb;color:#fff}
+th:nth-child(7){background:#cc8bc7;color:#fff}
+.date-number{font-weight:bold;font-size:.8rem}
+/* Estilos para Feriados */
+.dia-feriado {
+    padding: 2px;
+    border: 1px solid #888;
+    border-radius: 4px;
+    display: inline-block;
+    line-height: 1;
+    cursor: pointer;
+}
+.feriado-original {
+    color: red !important;
+    font-weight: bold;
+}
+.feriado-trasladado {
+    color: blue !important;
+    font-weight: bold;
+}
+.status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
+.status-bonif{background-color:#a0e9ff;color:#000;}
+.currency-dolares { color: red !important; font-weight: bold; }
+.hidden{display:none !important}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal-content{background:#fff;padding:18px;border-radius:6px;width:90%;max-width:800px;max-height:90vh;overflow:auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+.modal-content h2{margin-top:0; border-bottom: 1px solid #ccc; padding-bottom: 10px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.full-width{grid-column:1 / -1}
+.search-container{display:flex;gap:4px;align-items:center;margin-left:16px;}
+.search-container input{padding:4px;border-radius:4px;border:1px solid #7f8c8d;}
+.financial-summary{background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px;margin-top:15px;}
+.financial-summary h3, .financial-summary h4{margin-top:0; margin-bottom: 8px;}
+.financial-summary .summary-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px; margin-bottom: 15px; font-size: 0.85em;}
+.financial-summary .summary-item{background-color:#f9f9f9;padding:8px;border-radius:4px;}
+.financial-summary .summary-item strong{display:block;margin-bottom:4px;color:#2c3e50;}
+.financial-summary .expanded-breakdown-item{font-size:0.8em; display:flex; justify-content:flex-start; align-items:center; flex-wrap:wrap; padding: 4px; border-bottom: 1px solid #eee;}
+.financial-summary .expanded-breakdown-item strong{margin-right: 5px; white-space:nowrap;}
+.financial-summary .expanded-breakdown-item span{margin-right: 10px; white-space:nowrap;}
+footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; padding:10px;}
+.expenses-abm-container { display: flex; gap: 20px; flex-wrap: wrap; }
+.expenses-list { flex: 3; min-width: 400px; max-height: 400px; overflow-y: auto; }
+.expenses-form { flex: 2; min-width: 250px; background-color: #f9f9f9; padding: 10px; border-radius: 6px;}
+.expenses-form h3 { margin-top: 0; }
+.expenses-form label { display: block; margin-top: 10px; font-size: 0.9em; }
+.expenses-form input, .expenses-form select, .expenses-form textarea { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.expenses-list table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.expenses-list th, .expenses-list td { border: 1px solid #ddd; padding: 6px; text-align: left; word-break: break-word; }
+.expenses-list th { background-color: #f2f2f2; }
+.expenses-list .actions button { font-size: 0.8em; padding: 2px 5px; margin-right: 4px; }
+.expenses-summary-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+.expenses-summary-table th, .expenses-summary-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+.expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; }
+.expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
+.photo-link { display: inline-block; vertical-align: middle; }
+.list-thumbnail { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; border: 1px solid #ccc; margin-left: 6px; background-color: #fff; }
+.guest-link { color: #2980b9; text-decoration: underline; cursor: pointer; font-weight: bold; }
+.guest-link:hover { color: #3498db; }
+.inline-datetime { display: flex; align-items: center; gap: 6px; }
+.inline-datetime input[type="date"] { flex: 1 1 auto; min-width: 0; }
+.time-select { width: 56px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+.inline-datetime .time-sep { font-weight: bold; }
+</style>
+</head>
+<body>
+<header class="header">
+  <button class="property-btn active" id="btnBeltran4" onclick="switchCalendar('beltran4')">Beltrán 4º</button>
+  <button class="property-btn" id="btnBeltran8" onclick="switchCalendar('beltran8')">Beltrán 8º</button>
+  <button class="property-btn" id="btnDirectorio8" onclick="switchCalendar('directorio8')">Directorio 8º</button>
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Buscar huésped...">
+    <button class="action-btn" onclick="handleSearch()">Buscar</button>
+    <button class="action-btn secondary" onclick="clearSearch()">Limpiar</button>
+  </div>
+  <div class="month-nav">
+    <button class="action-btn secondary" onclick="changeMonth(-1)">«</button>
+    <span id="monthLabel" class="month-label"></span>
+    <button class="action-btn secondary" onclick="changeMonth(1)">»</button>
+  </div>
+  <button class="action-btn" onclick="openModal()">Añadir reserva</button>
+  <button id="authBtn" class="action-btn secondary">Iniciar sesión Google</button>
+  <button id="signoutBtn" class="action-btn secondary hidden">Cerrar sesión</button>
+</header>
+
+<main>
+  <h3>Check-ins / Check-outs</h3>
+  <div id="checkList" class="check-list"></div>
+  <div id="financialSummary" class="financial-summary">
+    <h3>Resumen Financiero del Mes</h3>
+    <div>
+        <label for="exchangeRate">Cotización Dólar:</label>
+        <input type="number" id="exchangeRate" value="1350" oninput="calculateFinancialSummary()">
+    </div>
+    <hr style="margin: 10px 0;">
+    <h4>Totales Generales</h4>
+    <div class="summary-grid">
+        <div class="summary-item"><strong>Ingresos Totales (ARS):</strong> <span id="summaryTotal">0</span></div>
+        <div class="summary-item"><strong>Ingresos Totales Netos (ARS):</strong> <span id="summaryTotalNet">0</span></div>
+        <div class="summary-item"><strong>Egresos Totales (ARS):</strong> <span id="summaryTotalExpenses">0</span></div>
+        <div class="summary-item"><strong>NIAT (ARS):</strong> <span id="summaryNiat">0</span></div>
+        <div class="summary-item"><strong>Total Cobrado (ARS):</strong> <span id="summaryPaid">0</span></div>
+        <div class="summary-item"><strong>Saldo a Cobrar (ARS):</strong> <span id="summaryDue">0</span></div>
+    </div>
+    <hr style="margin: 10px 0;">
+    <h4>
+        Desglose por Departamento
+        <label class="view-toggle">
+            <input type="checkbox" id="viewToggleCheckbox" onchange="calculateFinancialSummary()"> Ver todos
+        </label>
+    </h4>
+    <div id="summaryByProperty"></div>
+  </div>
+  <div class="calendar">
+    <div id="cal-beltran4"></div>
+    <div id="cal-beltran8" class="hidden"></div>
+    <div id="cal-directorio8" class="hidden"></div>
+  </div>
+</main>
+
+<footer>
+  <button class="action-btn secondary" onclick="exportData()">Exportar CSV</button>
+  <button class="action-btn" onclick="openExpensesABM()">Gestión de Gastos</button>
+  <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
+  <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
+  <button id="backupBtn" class="action-btn" style="background-color: #f39c12;" onclick="handleBackup()">Back-up</button>
+  <button class="action-btn" style="background-color: #075e54;" onclick="sendGuestFormAuto()">Enviar Form. Huésped Automático</button>
+  <button class="action-btn" style="background-color: #128C7E;" onclick="sendGuestFormManual()">Enviar Form. Huésped Manual</button>
+</footer>
+
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2 id="modalTitle">Nueva reserva</h2>
+    <form id="reservationForm" class="form-grid" onsubmit="event.preventDefault(); handleSave();">
+      <select id="propertySelect" required class="full-width">
+        <option value="beltran4">Beltrán 4º</option>
+        <option value="beltran8">Beltrán 8º</option>
+        <option value="directorio8">Directorio 8º</option>
+      </select>
+      <input id="guestName" list="clientsDatalist" placeholder="Nombre del huésped" required class="full-width" oninput="handleClientAutocomplete()">
+      <datalist id="clientsDatalist"></datalist>
+      <input id="guestDni" placeholder="DNI" />
+      <input id="guestEmail" type="email" placeholder="Email" />
+      <input id="guestPhone1" placeholder="Teléfono 1" />
+      <input id="guestPhone2" placeholder="Teléfono 2" />
+      
+      <div class="full-width">
+        <label for="guestPhoto" style="display: block; margin-bottom: 5px;">Foto del cliente (JPG/PNG, opcional)</label>
+        <input type="file" id="guestPhoto" accept="image/jpeg, image/png" style="width:100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+      </div>
+      
+      <div id="photoPreviewContainer" class="full-width hidden" style="text-align: center; margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;" data-delete-photo="false">
+          <p style="margin: 0 0 5px 0; font-weight: bold;">Foto actual:</p>
+          <img id="photoPreview" src="" alt="Foto del cliente" style="max-width: 150px; max-height: 150px; border-radius: 4px; border: 1px solid #ddd;">
+          <a id="photoPreviewLink" href="#" target="_blank" style="display: block; margin-top: 5px; font-size: 0.9em;">Ver en tamaño completo</a>
+          <button type="button" id="deletePhotoBtn" class="action-btn danger hidden" onclick="handleDeletePhoto()" style="margin-top: 10px; font-size: 0.8em; padding: 4px 8px;">Borrar Foto</button>
+      </div>
+
+      Tiene Cochera (S/N) <select style="width:2.5em" id="parkingSelect" title="¿Requiere cochera?"><option value="" disabled selected hidden>Cochera S/N</option><option value="S">S</option><option value="N" selected>N</option></select>
+
+
+      <input id="numGuests" type="number" min="1" placeholder="Cantidad de personas" required />
+      <div class="inline-datetime"><input id="checkInDate" type="date" required /><select id="checkInHour" class="time-select" title="Hora de ingreso"><option value=""></option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select><span class="time-sep">:</span><select id="checkInMinute" class="time-select" title="Minutos de ingreso"><option value=""></option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select></div>
+      <input id="checkOutDate" type="date" required />
+      <select id="platformSelect" required>
+        <option value="AirBnB">AirBnB</option><option value="Booking">Booking</option><option value="Mercado Libre">Mercado Libre</option><option value="Alquiler argentino">Alquiler argentino</option><option value="Para Irnos">Para Irnos</option><option value="x Fuera">x Fuera</option><option value="Otra" selected>Otra</option>
+      </select>
+      <select id="currencySelect" required>
+        <option value="Pesos Argentinos" selected>Pesos Argentinos</option><option value="Dolares">Dolares</option>
+      </select>
+      <input id="totalAmount" type="number" step="0.01" placeholder="Monto total" required oninput="calculateDueAmount()" />
+      <input id="paidAmount" type="number" step="0.01" placeholder="Monto pagado/seña" required oninput="calculateDueAmount()" />
+      <input id="dueAmount" type="number" step="0.01" placeholder="A pagar al ingreso" readonly />
+      <select id="statusSelect">
+        <option value="pending">Pendiente</option><option value="paid">Pagado</option><option value="cancelled">Cancelada</option>
+      </select>
+      <textarea id="notes" placeholder="Notas adicionales..." class="full-width"></textarea>
+      <input type="hidden" id="reservationId" />
+      <div class="modal-actions full-width">
+        <button type="button" id="generatePdfBtn" class="action-btn secondary hidden" onclick="generateGuestFormPDF()" style="margin-right: auto; background-color: #8e44ad;">Generar Formulario de Ingreso</button>
+        <button type="button" id="deleteBtn" class="action-btn danger hidden" onclick="handleDelete()">Eliminar</button>
+        <button type="button" class="action-btn secondary" onclick="closeModal()">Cerrar</button>
+        <button type="submit" id="saveBtn" class="action-btn">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="expensesAbmModal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2 id="expensesModalTitle">Gestión de Gastos</h2>
+    <div class="expenses-abm-container">
+        <div class="expenses-list">
+            <table id="expensesTable">
+                <thead><tr><th>Departamento</th><th>Tipo</th><th>Monto</th><th>Acciones</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <form id="expensesForm" class="expenses-form" onsubmit="event.preventDefault(); handleSaveGasto();">
+            <h3>Añadir / Editar Gasto</h3>
+            <label for="expPeriodo">Período</label>
+            <input type="text" id="expPeriodo" readonly>
+            <label for="expDepto">Departamento</label>
+            <select id="expDepto" required></select>
+            <label for="expType">Tipo de Gasto</label>
+            <select id="expType" required></select>
+            <label for="expAmount">Monto</label>
+            <input type="number" id="expAmount" step="0.01" placeholder="Ej: 35000" required>
+            <input type="hidden" id="expenseId">
+            <div class="modal-actions">
+                <button type="button" class="action-btn secondary" onclick="resetExpensesForm()">Nuevo</button>
+                <button type="submit" class="action-btn">Guardar</button>
+            </div>
+        </form>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="action-btn secondary" onclick="closeExpensesABM()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="expensesVisualModal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2 id="expensesVisualModalTitle">Resumen de Gastos</h2>
+    <table id="expensesSummaryTable" class="expenses-summary-table"></table>
+    <div class="modal-actions">
+      <button type="button" class="action-btn secondary" onclick="closeExpensesVisual()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ======  JS ====== */
+// --- CONFIGURACIÓN ---
+const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
+const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
+const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
+const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
+const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
+const FERIADOS_FILE_ID = '10lfxphwKhZcjBpWSBQFVQuw9be7boMlr';
+const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
+const SCOPES = 'https://www.googleapis.com/auth/drive';
+
+let gapiInited = false, gisInited = false, tokenClient;
+const authBtn = document.getElementById('authBtn'), signoutBtn = document.getElementById('signoutBtn');
+
+// --- LÓGICA DE LA APLICACIÓN ---
+const props = ['beltran4', 'beltran8', 'directorio8'];
+const propNames = { beltran4: 'Beltrán 4º', beltran8: 'Beltrán 8º', directorio8: 'Directorio 8º' };
+const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros', 'Comisiones'];
+const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
+const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// --- MODIFICADO: El estado arranca en blanco y gestiona el token ---
+if (typeof window.appState === 'undefined') {
+    window.appState = {
+        reservas: [],
+        clientes: [],
+        gastos: [],
+        authToken: null, // Guardará el token de autenticación
+        feriadosMap: new Map(),
+        highlightedIds: [],
+        y: new Date().getFullYear(),
+        m: new Date().getMonth(),
+        currentSummaryProp: props[0]
+    };
+}
+
+function authExpired(err){
+  const code = err?.status || err?.result?.error?.code;
+  const reason = err?.result?.error?.errors?.[0]?.reason || err?.result?.error?.status;
+  return code === 401 || reason === 'authError' || /invalid/i.test(String(reason||''));
+}
+
+// --- Lógica de Renderizado y UI ---
+function monthLabel() { document.getElementById('monthLabel').textContent = `${monthNames[appState.m]} ${appState.y}`; }
+function genGrid(Y, M) { const first=new Date(Y,M,1), last=new Date(Y,M+1,0); const start=((first.getDay()+6)%7), days=last.getDate(), out=[]; let week=Array(7).fill(null),d=1; for(let i=0;i<7;i++){if(i>=start)week[i]=new Date(Y,M,d++);} out.push(week); while(d<=days){week=Array(7).fill(null);for(let i=0;i<7&&d<=days;i++)week[i]=new Date(Y,M,d++);out.push(week);} while(out.length<6)out.push(Array(7).fill(null)); return out; }
+function render(prop) {
+    const cont = document.getElementById('cal-' + prop);
+    cont.innerHTML = '';
+    const tbl = document.createElement('table');
+    tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>';
+    const tbody = document.createElement('tbody');
+    genGrid(appState.y, appState.m).forEach(week => {
+        const tr = document.createElement('tr');
+        week.forEach(day => {
+            const td = document.createElement('td');
+            if (day) {
+                const ds = day.toISOString().split('T')[0];
+                let dayContent = '';
+                const dayNumber = day.getDate();
+
+                if (appState.feriadosMap && appState.feriadosMap.has(ds)) {
+                    const holidays = appState.feriadosMap.get(ds);
+                    const mainHoliday = holidays[0];
+                    const allDescs = holidays.map(h => h.desc).join(' | ');
+                    const cssClass = mainHoliday.type === 'original' ? 'feriado-original' : 'feriado-trasladado';
+                    dayContent = `<div class="date-number"><span class="dia-feriado ${cssClass}" title="${allDescs}" onclick="alert('${allDescs.replace(/'/g, "\\'")}')">${dayNumber}</span></div>`;
+                } else {
+                    dayContent = `<div class="date-number">${dayNumber}</div>`;
+                }
+                td.innerHTML = dayContent;
+
+                appState.reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled')
+                .forEach(r => {
+                    const ev = document.createElement('div');
+                    const platformInfo = r.platform || 'Otra';
+                    if (r.total === 0) {
+                        ev.className = 'event status-bonif';
+                        ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`;
+                    } else {
+                        ev.className = `event status-${r.status}`;
+                        let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : '';
+                        ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`;
+                    }
+                    if (r.currency === 'Dolares') ev.classList.add('currency-dolares');
+                    if (appState.highlightedIds.includes(r.id)) ev.classList.add('highlight');
+                    ev.onclick = e => { e.stopPropagation(); openEdit(r.id); };
+                    ev.title = r.notes || 'Sin notas adicionales';
+                    td.appendChild(ev);
+                });
+                td.onclick = () => openModal({ property: prop, date: ds });
+            }
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    cont.appendChild(tbl);
+}
+function renderAll(){props.forEach(render);refreshList();monthLabel();calculateFinancialSummary();}
+function switchCalendar(p){props.forEach(pr=>{ document.getElementById('cal-'+pr).classList.toggle('hidden',pr!==p); document.getElementById(`btn${pr.charAt(0).toUpperCase() + pr.slice(1)}`).classList.toggle('active',pr===p);});}
+function changeMonth(delta){appState.m+=delta;if(appState.m<0){appState.m=11;appState.y--;}else if(appState.m>11){appState.m=0;appState.y++;}renderAll();}
+
+function refreshList() {
+    const list = document.getElementById('checkList');
+    list.innerHTML = '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    const generateHtmlForItem = (reservation) => {
+        const client = appState.clientes.find(c => c.name.toLowerCase() === reservation.guestName.toLowerCase());
+        const photoLink = client && client.photoId
+            ? ` <a href="https://drive.google.com/uc?id=${client.photoId}" target="_blank" class="photo-link" title="Ver foto del cliente"><img src="https://drive.google.com/uc?id=${client.photoId}" class="list-thumbnail" alt="Foto"></a>`
+            : '';
+        const guestInfo = `${reservation.guestName} (${propNames[reservation.property]})`;
+        return `<a href="#" class="guest-link" onclick="event.preventDefault(); openEdit('${reservation.id}')">${guestInfo}</a>${photoLink}`;
+    };
+
+    const checkInsToday = appState.reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
+    const checkOutsToday = appState.reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
+    const todaySection = document.createElement('div');
+    todaySection.innerHTML = `<strong>Hoy (${todayStr})</strong><br>`;
+    if (checkInsToday.length === 0 && checkOutsToday.length === 0) {
+        todaySection.innerHTML += 'Sin movimientos';
+    } else {
+        if (checkInsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsToday.map(generateHtmlForItem).join(', ')}<br>`;
+        if (checkOutsToday.length > 0) todaySection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsToday.map(generateHtmlForItem).join(', ')}`;
+    }
+    list.appendChild(todaySection);
+
+    const checkInsTomorrow = appState.reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
+    const checkOutsTomorrow = appState.reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
+    const tomorrowSection = document.createElement('div');
+    tomorrowSection.innerHTML = `<br><strong>Mañana (${tomorrowStr})</strong><br>`;
+    if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) {
+        tomorrowSection.innerHTML += 'Sin movimientos';
+    } else {
+        if (checkInsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-success">Check-in</span> ${checkInsTomorrow.map(generateHtmlForItem).join(', ')}<br>`;
+        if (checkOutsTomorrow.length > 0) tomorrowSection.innerHTML += `<span class="badge badge-danger">Check-out</span> ${checkOutsTomorrow.map(generateHtmlForItem).join(', ')}`;
+    }
+    list.appendChild(tomorrowSection);
+}
+
+function calculateDueAmount() { const total = parseFloat(document.getElementById('totalAmount').value) || 0; const paid = parseFloat(document.getElementById('paidAmount').value) || 0; document.getElementById('dueAmount').value = (total - paid).toFixed(2); }
+
+function openModal(pref) {
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    document.getElementById('reservationForm').reset();
+    document.getElementById('reservationId').value = '';
+    document.getElementById('deleteBtn').classList.add('hidden');
+    document.getElementById('generatePdfBtn').classList.add('hidden');
+    if (pref) {
+        document.getElementById('propertySelect').value = pref.property;
+        document.getElementById('checkInDate').value = pref.date;
+        document.getElementById('checkOutDate').value = pref.date;
+    }
+    document.getElementById('modalTitle').textContent = 'Nueva reserva';
+    populateClientsDatalist();
+    calculateDueAmount();
+    const hSel = document.getElementById('checkInHour');
+    const mSel = document.getElementById('checkInMinute');
+    if (hSel) hSel.value = '';
+    if (mSel) mSel.value = '';
+    const parkingSel = document.getElementById('parkingSelect');
+    if (parkingSel) parkingSel.value = 'N';
+    clearPhotoPreview();
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
+
+function openEdit(id) {
+    const r = appState.reservas.find(x => x.id === id);
+    if (!r) return;
+    openModal();
+    document.getElementById('modalTitle').textContent = 'Editar reserva';
+    document.getElementById('propertySelect').value = r.property;
+    document.getElementById('guestName').value = r.guestName;
+    document.getElementById('guestDni').value = r.guestDni || '';
+    document.getElementById('guestEmail').value = r.guestEmail || '';
+    document.getElementById('guestPhone1').value = r.guestPhone1 || '';
+    document.getElementById('guestPhone2').value = r.guestPhone2 || '';
+    document.getElementById('numGuests').value = r.numGuests;
+    document.getElementById('checkInDate').value = r.checkIn;
+    document.getElementById('checkOutDate').value = r.checkOut;
+    document.getElementById('platformSelect').value = r.platform || 'Otra';
+    document.getElementById('currencySelect').value = r.currency || 'Pesos Argentinos';
+    document.getElementById('totalAmount').value = r.total;
+    document.getElementById('paidAmount').value = r.paid;
+    document.getElementById('statusSelect').value = r.status;
+    document.getElementById('notes').value = r.notes || '';
+    document.getElementById('reservationId').value = r.id;
+    calculateDueAmount();
+    const timeStr = r.checkInTime || '';
+    const hh = timeStr ? timeStr.split(':')[0] : '';
+    const mm = timeStr ? timeStr.split(':')[1] : '';
+    const hSel = document.getElementById('checkInHour');
+    const mSel = document.getElementById('checkInMinute');
+    if (hSel) hSel.value = hh;
+    if (mSel) mSel.value = mm;
+    const parkingSel = document.getElementById('parkingSelect');
+    if (parkingSel) parkingSel.value = (r.cochera === 'S' || r.cochera === 'N') ? r.cochera : '';
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    document.getElementById('generatePdfBtn').classList.remove('hidden');
+    
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
+    const client = appState.clientes.find(c => c.name.toLowerCase() === r.guestName.toLowerCase());
+    if (client && client.photoId) {
+        showPhotoPreview(client.photoId);
+    } else {
+        clearPhotoPreview();
+    }
+}
+
+function formatNumber(num) { return Math.round(num).toLocaleString('es-AR'); }
+function handleSearch() { const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } appState.highlightedIds = appState.reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(appState.highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = appState.reservas.find(r => r.id === appState.highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); appState.y = checkInDate.getFullYear(); appState.m = checkInDate.getMonth(); } } renderAll(); }
+function clearSearch() { document.getElementById('searchInput').value = ''; appState.highlightedIds = []; renderAll(); }
+function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(appState.clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
+
+function handleClientAutocomplete() {
+    const name = document.getElementById('guestName').value;
+    const client = appState.clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
+    if (client) {
+        document.getElementById('guestDni').value = client.dni || '';
+        document.getElementById('guestEmail').value = client.email || '';
+        document.getElementById('guestPhone1').value = client.phone1 || '';
+        document.getElementById('guestPhone2').value = client.phone2 || '';
+        if (client.photoId) {
+            showPhotoPreview(client.photoId);
+        } else {
+            clearPhotoPreview();
+        }
+    } else {
+        clearPhotoPreview();
+    }
+}
+
+function showPhotoPreview(photoId) {
+    const container = document.getElementById('photoPreviewContainer');
+    const deleteBtn = document.getElementById('deletePhotoBtn');
+    if (!photoId) {
+        container.classList.add('hidden');
+        deleteBtn.classList.add('hidden');
+        return;
+    }
+    const img = document.getElementById('photoPreview');
+    const link = document.getElementById('photoPreviewLink');
+    const viewUrl = `https://drive.google.com/uc?id=${photoId}`;
+    
+    img.src = viewUrl;
+    link.href = viewUrl;
+    container.classList.remove('hidden');
+    deleteBtn.classList.remove('hidden');
+}
+
+function clearPhotoPreview() {
+    document.getElementById('photoPreviewContainer').classList.add('hidden');
+    document.getElementById('deletePhotoBtn').classList.add('hidden');
+    document.getElementById('guestPhoto').value = '';
+}
+
+function handleDeletePhoto() {
+    if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen se borrará de Google Drive.')) {
+        return;
+    }
+    document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'true';
+    clearPhotoPreview();
+}
+
+async function uploadPhoto(file) {
+    if (!appState.authToken) {
+        throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
+    }
+    if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
+        throw new Error("ID de la carpeta de fotos no configurado. Contacte al desarrollador.");
+    }
+
+    try {
+        const accessToken = appState.authToken.access_token;
+        const metadata = {
+            'name': `${Date.now()}_${file.name}`,
+            'parents': [CLIENT_PHOTOS_FOLDER_ID]
+        };
+        const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: JSON.stringify(metadata)
+        });
+
+        if (!initResponse.ok) throw new Error('No se pudo iniciar la sesión de subida a Drive.');
+        
+        const locationUrl = initResponse.headers.get('Location');
+        if (!locationUrl) throw new Error('No se recibió la URL de subida de Drive.');
+
+        const uploadResponse = await fetch(locationUrl, {
+            method: 'PUT',
+            headers: { 'Content-Range': `bytes 0-${file.size - 1}/${file.size}` },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            const errorBody = await uploadResponse.json();
+            throw new Error(`Error al subir el contenido del archivo: ${errorBody.error.message}`);
+        }
+
+        const result = await uploadResponse.json();
+        const fileId = result.id;
+
+        await gapi.client.drive.permissions.create({
+            fileId: fileId,
+            resource: { 'role': 'reader', 'type': 'anyone' }
+        });
+
+        console.log('Subida completada. ID del archivo:', fileId);
+        return fileId;
+
+    } catch (error) {
+        console.error('Error durante el proceso de subida a Drive:', error);
+        throw new Error(`Fallo al subir la foto a Drive: ${error.message}`);
+    }
+}
+
+async function deletePhotoFromDrive(fileId) {
+    if (!fileId) return;
+    console.log(`Intentando eliminar el archivo de Drive con ID: ${fileId}`);
+    try {
+        await gapi.client.drive.files.delete({
+            fileId: fileId
+        });
+        console.log(`Archivo ${fileId} eliminado exitosamente de Google Drive.`);
+    } catch (error) {
+        console.error(`No se pudo eliminar el archivo ${fileId} de Drive. Puede que ya no exista o haya un problema de permisos.`, error);
+    }
+}
+
+
+async function handleSave() {
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando...';
+    const originalReservas = JSON.parse(JSON.stringify(appState.reservas));
+    const originalClientes = JSON.parse(JSON.stringify(appState.clientes));
+
+    try {
+        calculateDueAmount();
+        const reservationId = document.getElementById('reservationId').value;
+        const isEditing = !!reservationId;
+        const formData = {
+            id: reservationId || 'res-' + Date.now(),
+            property: document.getElementById('propertySelect').value,
+            guestName: document.getElementById('guestName').value.trim(),
+            guestDni: document.getElementById('guestDni').value.trim(),
+            guestEmail: document.getElementById('guestEmail').value.trim(),
+            guestPhone1: document.getElementById('guestPhone1').value.trim(),
+            guestPhone2: document.getElementById('guestPhone2').value.trim(),
+            numGuests: +document.getElementById('numGuests').value,
+            checkIn: document.getElementById('checkInDate').value,
+            checkOut: document.getElementById('checkOutDate').value,
+            platform: document.getElementById('platformSelect').value,
+            currency: document.getElementById('currencySelect').value,
+            total: +document.getElementById('totalAmount').value,
+            paid: +document.getElementById('paidAmount').value,
+            due: +document.getElementById('dueAmount').value,
+            status: document.getElementById('statusSelect').value,
+            notes: document.getElementById('notes').value.trim()
+        };
+        const hSel = document.getElementById('checkInHour');
+        const mSel = document.getElementById('checkInMinute');
+        const parkingSel = document.getElementById('parkingSelect');
+        const hour = hSel ? hSel.value : '';
+        const minute = mSel ? mSel.value : '';
+        let checkInTime = '';
+        if ((hour && !minute) || (!hour && minute)) {
+            throw new Error('Debe completar hora y minutos o dejar ambos en blanco.');
+        }
+        if (hour && minute) { checkInTime = `${hour}:${minute}`; }
+        let cocheraVal = (parkingSel ? parkingSel.value : '').toUpperCase();
+        if (cocheraVal && cocheraVal !== 'S' && cocheraVal !== 'N') {
+            throw new Error('Cochera debe ser S o N (o dejar en blanco).');
+        }
+        formData.checkInTime = checkInTime;
+        formData.cochera = cocheraVal || '';
+
+        const photoInput = document.getElementById('guestPhoto');
+        let newPhotoId = null;
+        if (photoInput.files.length > 0) {
+            newPhotoId = await uploadPhoto(photoInput.files[0]);
+        }
+
+        if (!formData.guestName || !formData.checkIn || !formData.checkOut) { throw new Error('Faltan campos obligatorios: Nombre, Ingreso y Egreso.'); }
+        if (new Date(formData.checkOut) < new Date(formData.checkIn)) { throw new Error('La fecha de egreso debe ser igual o posterior a la de ingreso.'); }
+        if (formData.paid > formData.total) { throw new Error('El monto pagado no puede ser mayor al monto total.'); }
+        if (formData.paid >= formData.total && formData.status === 'pending') { formData.status = 'paid'; }
+        const newStart = new Date(formData.checkIn + 'T00:00:00'); const newEnd = new Date(formData.checkOut + 'T00:00:00');
+        const isOverlapping = appState.reservas.some(ex => ex.property === formData.property && ex.id !== formData.id && ex.status !== 'cancelled' && newStart < new Date(ex.checkOut + 'T00:00:00') && new Date(ex.checkIn + 'T00:00:00') < newEnd );
+        if (isOverlapping) { throw new Error('Las fechas se superponen con una reserva activa en el mismo departamento.'); }
+
+        const resIndex = isEditing ? appState.reservas.findIndex(x => x.id === reservationId) : -1;
+        if (resIndex > -1) { appState.reservas[resIndex] = formData; } else { appState.reservas.push(formData); }
+
+        let clientIndex = appState.clientes.findIndex(c => c.name.toLowerCase() === formData.guestName.toLowerCase());
+        const existingClient = clientIndex > -1 ? appState.clientes[clientIndex] : null;
+        const shouldDeletePhoto = document.getElementById('photoPreviewContainer').dataset.deletePhoto === 'true';
+        
+        let photoIdToDelete = null;
+        if (shouldDeletePhoto && existingClient && existingClient.photoId) {
+            photoIdToDelete = existingClient.photoId;
+        }
+        
+        let finalPhotoId;
+        if (newPhotoId) {
+            finalPhotoId = newPhotoId;
+        } else if (shouldDeletePhoto) {
+            finalPhotoId = null;
+        } else if (existingClient) {
+            finalPhotoId = existingClient.photoId;
+        } else {
+            finalPhotoId = null;
+        }
+
+        const clientData = {
+            name: formData.guestName,
+            dni: formData.guestDni,
+            email: formData.guestEmail,
+            phone1: formData.guestPhone1,
+            phone2: formData.guestPhone2,
+            photoId: finalPhotoId
+        };
+
+        if (clientIndex > -1) {
+            appState.clientes[clientIndex] = { ...appState.clientes[clientIndex], ...clientData };
+        } else if (formData.guestName) {
+            appState.clientes.push(clientData);
+        }
+        
+        await save();
+        
+        if (photoIdToDelete) {
+            await deletePhotoFromDrive(photoIdToDelete);
+        }
+
+        const checkInDate = new Date(formData.checkIn + 'T00:00:00');
+        appState.y = checkInDate.getFullYear();
+        appState.m = checkInDate.getMonth();
+        closeModal();
+    } catch (error) {
+        console.error("Error al guardar la reserva:", error);
+        alert(`FALLO AL GUARDAR: ${error.message}. Los cambios no se guardaron. Por favor, revise los datos o inicie sesión de nuevo.`);
+        appState.reservas = originalReservas;
+        appState.clientes = originalClientes;
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar';
+        renderAll();
+        populateClientsDatalist();
+    }
+}
+
+async function handleDelete() {
+    const id = document.getElementById('reservationId').value;
+    if (!id || !window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+        return;
+    }
+
+    const originalReservas = [...appState.reservas];
+    const originalClientes = JSON.parse(JSON.stringify(appState.clientes));
+
+    const reservationToDelete = appState.reservas.find(r => r.id === id);
+    if (!reservationToDelete) return;
+
+    appState.reservas = appState.reservas.filter(r => r.id !== id);
+
+    const guestName = reservationToDelete.guestName;
+    let photoIdToDelete = null;
+
+    const hasMoreReservations = appState.reservas.some(r => r.guestName.toLowerCase() === guestName.toLowerCase());
+
+    if (!hasMoreReservations) {
+        const clientIndex = appState.clientes.findIndex(c => c.name.toLowerCase() === guestName.toLowerCase());
+        if (clientIndex > -1 && appState.clientes[clientIndex].photoId) {
+            photoIdToDelete = appState.clientes[clientIndex].photoId;
+            appState.clientes[clientIndex].photoId = null;
+        }
+    }
+
+    try {
+        await save();
+        console.log('Reserva eliminada y datos guardados en la nube.');
+        
+        if (photoIdToDelete) {
+            await deletePhotoFromDrive(photoIdToDelete);
+        }
+
+    } catch (error) {
+        appState.reservas = originalReservas;
+        appState.clientes = originalClientes;
+        console.error('Error al guardar la eliminación:', error);
+        alert(`FALLO AL GUARDAR EN LA NUBE: ${error.message}. La reserva no se eliminó. Por favor, verifique su conexión o inicie sesión de nuevo.`);
+    } finally {
+        renderAll();
+        closeModal();
+    }
+}
+
+async function save() {
+    localStorage.setItem('reservas', JSON.stringify(appState.reservas));
+    localStorage.setItem('clientes', JSON.stringify(appState.clientes));
+    localStorage.setItem('gastos', JSON.stringify(appState.gastos));
+    await Promise.all([
+        saveData(RESERVAS_FILE_ID, appState.reservas),
+        saveData(CLIENTS_FILE_ID, appState.clientes),
+        saveData(GASTOS_FILE_ID, appState.gastos)
+    ]);
+}
+
+// --- Lógica de Módulo de Gastos ---
+function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[appState.m]} ${appState.y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
+function closeExpensesABM() { document.getElementById('expensesAbmModal').classList.add('hidden'); }
+function populateExpensesFormDropdowns() { const deptoSelect = document.getElementById('expDepto'); deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join(''); const typeSelect = document.getElementById('expType'); typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join(''); }
+function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; appState.gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
+function resetExpensesForm() { document.getElementById('expensesForm').reset(); document.getElementById('expenseId').value = ''; const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expPeriodo').value = periodo; }
+async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value) }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos.'); return; } const index = appState.gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { appState.gastos[index] = gastoData; } else { appState.gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); calculateFinancialSummary(); resetExpensesForm(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
+function handleEditGasto(id) { const gasto = appState.gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; }
+async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; appState.gastos = appState.gastos.filter(g => g.id !== id); try { await save(); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
+function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
+function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
+
+function calculateFinancialSummary(selectedPropOverride = null) {
+    if (selectedPropOverride) {
+        appState.currentSummaryProp = selectedPropOverride;
+    }
+
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const currentPeriodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`;
+    const firstDayOfMonth = new Date(appState.y, appState.m, 1);
+    const lastDayOfMonth = new Date(appState.y, appState.m + 1, 0);
+
+    let grandTotal = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0 };
+    const byProperty = {};
+    props.forEach(prop => { byProperty[prop] = { total: 0, paid: 0, due: 0, net: 0, expenses: 0, niat: 0, count: 0 }; });
+
+    appState.reservas.filter(r => { const checkIn = new Date(r.checkIn + 'T00:00:00'); return checkIn >= firstDayOfMonth && checkIn <= lastDayOfMonth && r.status !== 'cancelled'; })
+    .forEach(r => {
+        const rate = r.currency === 'Dolares' ? exchangeRate : 1;
+        const totalArs = r.total * rate;
+        const paidArs = r.paid * rate;
+        const dueArs = r.due * rate;
+        const commission = totalArs * (commissionRates[r.platform] || 0);
+        const netArs = totalArs - commission;
+        grandTotal.total += totalArs; grandTotal.paid += paidArs; grandTotal.due += dueArs; grandTotal.net += netArs;
+        if (byProperty[r.property]) {
+            byProperty[r.property].total += totalArs; byProperty[r.property].paid += paidArs; byProperty[r.property].due += dueArs; byProperty[r.property].net += netArs; byProperty[r.property].count++;
+        }
+    });
+
+    appState.gastos.filter(g => g.periodo === currentPeriodo).forEach(g => {
+        grandTotal.expenses += g.monto;
+        if (byProperty[g.departamento]) {
+            byProperty[g.departamento].expenses += g.monto;
+        }
+    });
+    
+    grandTotal.niat = grandTotal.net - grandTotal.expenses;
+    props.forEach(prop => {
+        byProperty[prop].niat = byProperty[prop].net - byProperty[prop].expenses;
+    });
+
+    document.getElementById('summaryTotal').textContent = `$${formatNumber(grandTotal.total)}`;
+    document.getElementById('summaryTotalNet').textContent = `$${formatNumber(grandTotal.net)}`;
+    document.getElementById('summaryTotalExpenses').textContent = `$${formatNumber(grandTotal.expenses)}`;
+    document.getElementById('summaryNiat').textContent = `$${formatNumber(grandTotal.niat)}`;
+    document.getElementById('summaryPaid').textContent = `$${formatNumber(grandTotal.paid)}`;
+    document.getElementById('summaryDue').textContent = `$${formatNumber(grandTotal.due)}`;
+
+    const breakdownContainer = document.getElementById('summaryByProperty');
+    const showAll = document.getElementById('viewToggleCheckbox').checked;
+    
+    if (showAll) {
+        breakdownContainer.innerHTML = '';
+        props.forEach(prop => {
+            const propData = byProperty[prop];
+            const propElement = document.createElement('div');
+            propElement.className = 'expanded-breakdown-item';
+            propElement.innerHTML = `<strong>${propNames[prop]} (${propData.count}):</strong> <span>Ingresos: $${formatNumber(propData.total)}</span> <span>Ingresos Netos: $${formatNumber(propData.net)}</span> <span>Egresos: $${formatNumber(propData.expenses)}</span> <span>NIAT: $${formatNumber(propData.niat)}</span> <span>Cobrado: $${formatNumber(propData.paid)}</span> <span>Saldo: $${formatNumber(propData.due)}</span>`;
+            breakdownContainer.appendChild(propElement);
+        });
+    } else {
+        const propData = byProperty[appState.currentSummaryProp];
+        breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === appState.currentSummaryProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
+    }
+}
+function exportData() {
+    if (!appState.reservas.length) { alert('No hay datos para exportar.'); return; }
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
+    const csvRows = [csvHeader];
+    appState.reservas.forEach(r => {
+        const checkInDate = new Date(r.checkIn + 'T00:00:00');
+        const year = checkInDate.getFullYear();
+        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
+        const periodo = `${year}${month}`;
+        let totalArs = r.total;
+        let paidArs = r.paid;
+        let dueArs = r.due;
+        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const totalNet = totalArs - commission;
+        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
+        csvRows.push(row);
+    });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'reservas_export.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+function sendWhatsAppSummary() {
+    const phoneNumbers = [ '5491160018388', '5491161911833' ];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const checkInsToday = appState.reservas.filter(r => r.checkIn === todayStr && r.status !== 'cancelled');
+    const checkOutsToday = appState.reservas.filter(r => r.checkOut === yesterdayStr && r.status !== 'cancelled');
+    const checkInsTomorrow = appState.reservas.filter(r => r.checkIn === tomorrowStr && r.status !== 'cancelled');
+    const checkOutsTomorrow = appState.reservas.filter(r => r.checkOut === todayStr && r.status !== 'cancelled');
+    let message = `*Resumen de Movimientos* 🛎️\n\n`;
+    message += `*HOY (${today.toLocaleDateString('es-AR')})*\n`;
+    if (checkInsToday.length > 0) { message += `➡️ *Check-in:* ${checkInsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
+    if (checkOutsToday.length > 0) { message += `⬅️ *Check-out:* ${checkOutsToday.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
+    if (checkInsToday.length === 0 && checkOutsToday.length === 0) { message += `_Sin movimientos para hoy._\n`; }
+    message += `\n*MAÑANA (${tomorrow.toLocaleDateString('es-AR')})*\n`;
+    if (checkInsTomorrow.length > 0) { message += `➡️ *Check-in:* ${checkInsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
+    if (checkOutsTomorrow.length > 0) { message += `⬅️ *Check-out:* ${checkOutsTomorrow.map(r => `${r.guestName} (${propNames[r.property]})`).join(', ')}\n`; }
+    if (checkInsTomorrow.length === 0 && checkOutsTomorrow.length === 0) { message += `_Sin movimientos para mañana._\n`; }
+    const encodedMessage = encodeURIComponent(message);
+    phoneNumbers.forEach(number => { if (number) { const whatsappUrl = `https://wa.me/${number}?text=${encodedMessage}`; window.open(whatsappUrl, '_blank'); } });
+}
+
+function sendGuestFormAuto() {
+    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
+    if (!phone || phone.trim() === '') return;
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.length < 8) { alert("El número de teléfono parece inválido."); return; }
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+    const formUrl = baseUrl + 'datos%20huesped.html';
+    const message = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor por un tema de seguridad completá este mini formulario (hace click en el link) y, al finalizar, clickea el botón Enviar por WhatsApp. Enviame adicionalmente, también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌\n\n${formUrl}`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+}
+
+function sendGuestFormManual() {
+    const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
+    if (!phone || phone.trim() === '') return;
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.length < 8) { alert("El número de teléfono parece inválido."); return; }
+    const message = `Hola! ¿Cómo estás? 😊, te solicitamos algunos datos que necesitamos para asegurar tu reserva, registrarte y por seguridad. Podés responderme las siguientes preguntas acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 13:00, formato 24 horas hh:mm)\n\nAdjuntar adicionalmente: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+}
+
+
+function generateGuestFormPDF() {
+    const { jsPDF } = window.jspdf;
+    const pdfGenReservationId = document.getElementById('reservationId').value;
+    const pdfGenCurrentReservation = appState.reservas.find(res => res.id === pdfGenReservationId);
+
+    if (!pdfGenCurrentReservation) {
+        alert('No se encontró la reserva para generar el formulario.');
+        return;
+    }
+
+    try {
+        const pdfNewDoc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const pdfNewLogoBase64 = '';
+        const pdfNewMargin = 15;
+        const pdfNewPageWidth = pdfNewDoc.internal.pageSize.getWidth();
+        const pdfNewContentWidth = pdfNewPageWidth - (pdfNewMargin * 2);
+        const pdfNewCurrentDate = new Date();
+        const pdfNewDay = String(pdfNewCurrentDate.getDate()).padStart(2, '0');
+        const pdfNewMonth = String(pdfNewCurrentDate.getMonth() + 1).padStart(2, '0');
+        const pdfNewYear = pdfNewCurrentDate.getFullYear();
+        const pdfNewFormattedDate = `${pdfNewDay}/${pdfNewMonth}/${pdfNewYear}`;
+        const pdfHelperFormatDate = (dateString) => { if (!dateString) return '---'; const [y, m, d] = dateString.split('-'); return `${d}/${m}/${y}`; };
+        const pdfHelperGetAddress = (property) => { if (property === 'beltran4') return 'Fray Luis Beltran 35 4to A '; if (property === 'beltran8') return 'Fray Luis Beltran 35 8vo A '; if (property === 'directorio8') return 'Avda Directorio 1019 8vo A Caballito '; return '---'; };
+        const pdfHelperGetCheckoutDate = (dateString) => { if (!dateString) return '---'; const checkout = new Date(dateString + 'T00:00:00Z'); checkout.setDate(checkout.getDate() + 1); const d = String(checkout.getUTCDate()).padStart(2, '0'); const m = String(checkout.getUTCMonth() + 1).padStart(2, '0'); const y = checkout.getUTCFullYear(); return `${d}/${m}/${y} (11:00 AM)`; };
+        if (pdfNewLogoBase64) { const pdfNewLogoWidth = 30; const pdfNewLogoHeight = 30; const pdfNewLogoX = pdfNewPageWidth - pdfNewMargin - pdfNewLogoWidth; pdfNewDoc.addImage(pdfNewLogoBase64, 'JPEG', pdfNewLogoX, 10, pdfNewLogoWidth, pdfNewLogoHeight); }
+        pdfNewDoc.setFontSize(14); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Formulario de Ingreso - Alquiler Temporario', pdfNewMargin, 20);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); pdfNewDoc.text(`Buenos Aires, ${pdfNewFormattedDate}`, pdfNewMargin, 26);
+        pdfNewDoc.setDrawColor(200, 200, 200); pdfNewDoc.setLineWidth(0.5); pdfNewDoc.line(pdfNewMargin, 45, pdfNewPageWidth - pdfNewMargin, 45);
+        let pdfNewYPos = 55;
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 30, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Datos de la Estancia', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); const pdfNewStayDataCol1X = pdfNewMargin + 7; const pdfNewStayDataCol2X = pdfNewMargin + 100;
+        pdfNewDoc.text(`Fecha de ingreso: ${pdfHelperFormatDate(pdfGenCurrentReservation.checkIn)}`, pdfNewStayDataCol1X, pdfNewYPos + 18);
+        pdfNewDoc.text(`Dirección: ${pdfHelperGetAddress(pdfGenCurrentReservation.property)}`, pdfNewStayDataCol1X, pdfNewYPos + 24);
+        pdfNewDoc.text(`Fecha de egreso: ${pdfHelperGetCheckoutDate(pdfGenCurrentReservation.checkOut)}`, pdfNewStayDataCol2X, pdfNewYPos + 18);
+        pdfNewYPos += 40;
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 68, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Declaración del Huésped', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(9); pdfNewDoc.setFont(undefined, 'normal');
+        const pdfNewDeclarationText = [ 'Yo, el/la abajo firmante, declaro que:', '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o temporarios.', '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble, sus instalaciones y bienes.', '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por personas que me acompañen.', '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de permanencia, ya que el uso es estrictamente temporario.', '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al propietario a conservar una copia de mi DNI para fines de seguridad.' ];
+        pdfNewDoc.text(pdfNewDeclarationText, pdfNewMargin + 7, pdfNewYPos + 18, { maxWidth: pdfNewContentWidth - 14, lineHeightFactor: 1.5 });
+        pdfNewYPos += 78;
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 42, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Datos Personales del Contratante', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); const pdfNewGuestDataCol1X = pdfNewMargin + 7; const pdfNewGuestDataCol2X = pdfNewMargin + 100;
+        pdfNewDoc.text(`Nombre y Apellido: ${pdfGenCurrentReservation.guestName || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 18);
+        pdfNewDoc.text(`DNI: ${pdfGenCurrentReservation.guestDni || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 24);
+        pdfNewDoc.text(`Teléfono: ${pdfGenCurrentReservation.guestPhone1 || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 30);
+        pdfNewDoc.text(`Correo Electrónico: ${pdfGenCurrentReservation.guestEmail || '---'}`, pdfNewGuestDataCol2X, pdfNewYPos + 18);
+        pdfNewDoc.text(`Cantidad de Huéspedes: ${pdfGenCurrentReservation.numGuests || '---'}`, pdfNewGuestDataCol2X, pdfNewYPos + 24);
+        pdfNewYPos += 55;
+        pdfNewDoc.setFontSize(11); pdfNewDoc.setFont(undefined, 'normal'); pdfNewDoc.text('Firma del huésped:', pdfNewMargin, pdfNewYPos);
+        pdfNewDoc.line(pdfNewMargin + 40, pdfNewYPos, pdfNewMargin + 100, pdfNewYPos);
+        pdfNewDoc.text('Firma del propietario/responsable:', pdfNewMargin, pdfNewYPos + 15);
+        pdfNewDoc.line(pdfNewMargin + 70, pdfNewYPos + 15, pdfNewMargin + 130, pdfNewYPos + 15);
+        pdfNewDoc.save(`Formulario-Ingreso-${pdfGenCurrentReservation.guestName.replace(/ /g, '_')}.pdf`);
+    } catch (error) { console.error("Error al generar el PDF:", error); alert(`Ocurrió un error al generar el PDF: ${error.message}`); }
+}
+
+
+// --- Lógica de Autenticación de Google (CORREGIDA) ---
+function setupAuth() {
+    if (gapiInited && gisInited) {
+        authBtn.onclick = () => tokenClient.requestAccessToken({ prompt: 'consent' });
+        signoutBtn.onclick = handleSignoutClick;
+    }
+}
+
+function gapiLoaded() { 
+    gapi.load('client', initializeGapiClient); 
+}
+
+async function initializeGapiClient() { 
+    await gapi.client.init({ 
+        apiKey: API_KEY, 
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'], 
+    }); 
+    gapiInited = true; 
+    setupAuth();
+}
+
+function gisLoaded() {
+    const processTokenResponse = (tokenResponse) => {
+        if (tokenResponse && tokenResponse.access_token) {
+            gapi.client.setToken(tokenResponse);
+            updateSigninStatus(true);
+            
+            // --- MODIFICADO: Se gestiona el token en el estado de la app ---
+            appState.authToken = tokenResponse;
+
+            Promise.all([
+                loadReservasData(), 
+                loadClientsData(), 
+                loadGastosData(),
+                loadFeriadosData()
+            ]).then(() => {
+                renderAll();
+            }).catch(error => {
+                console.error("Error cargando datos iniciales:", error);
+                alert("Hubo un error al cargar todos los datos.");
+            });
+        }
+    };
+
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: processTokenResponse,
+    });
+
+    gisInited = true;
+    setupAuth();
+}
+
+
+function handleSignoutClick() { 
+    const token = appState.authToken;
+    if (token) { 
+        google.accounts.oauth2.revoke(token.access_token, () => {
+            gapi.client.setToken(''); 
+            updateSigninStatus(false);
+        });
+    } 
+}
+
+function updateSigninStatus(isSignedIn) {
+    if (isSignedIn) {
+        authBtn.classList.add('hidden');
+        signoutBtn.classList.remove('hidden');
+    } else {
+        authBtn.classList.remove('hidden');
+        signoutBtn.classList.add('hidden');
+        
+        // --- MODIFICADO: Limpieza completa al cerrar sesión ---
+        appState.authToken = null;
+        appState.reservas = [];
+        appState.clientes = [];
+        appState.gastos = [];
+        appState.feriadosMap.clear();
+        
+        localStorage.removeItem('reservas');
+        localStorage.removeItem('clientes');
+        localStorage.removeItem('gastos');
+        
+        renderAll();
+    }
+}
+
+async function loadData(fileId) {
+    try {
+        const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+        return response.body;
+    } catch (err) {
+        console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
+        if (authExpired(err)) {
+            updateSigninStatus(false);
+            alert('La sesión con Google expiró. Por favor, iniciá sesión nuevamente.');
+        }
+        throw new Error(`No se pudo cargar el archivo ${fileId}.`);
+    }
+}
+
+async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { console.warn("No se pudieron cargar las reservas desde Google Drive." ); } }
+async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { console.warn("No se pudieron cargar los clientes desde Google Drive." ); } finally { populateClientsDatalist(); } }
+async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { console.warn("No se pudieron cargar los gastos desde Google Drive." ); } finally { calculateFinancialSummary(); } }
+
+async function loadFeriadosData() {
+    try {
+        const feriadosList = JSON.parse(await loadData(FERIADOS_FILE_ID));
+        appState.feriadosMap.clear();
+        if (Array.isArray(feriadosList)) {
+            feriadosList.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                            if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                            appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+        localStorage.setItem('feriados', JSON.stringify(feriadosList));
+    } catch (err) {
+        console.warn("No se pudieron cargar los feriados desde Google Drive.", err);
+        const localFeriados = JSON.parse(localStorage.getItem('feriados'));
+        if(Array.isArray(localFeriados)) {
+             localFeriados.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                           if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                           appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+    }
+}
+
+async function saveData(fileId, data) { 
+    if (!appState.authToken) { 
+        throw new Error("No autenticado. Inicie sesión con Google para guardar."); 
+    } 
+    const content = JSON.stringify(data, null, 2); 
+    try { 
+        await gapi.client.request({ 
+            path: '/upload/drive/v3/files/' + fileId, 
+            method: 'PATCH', 
+            params: { uploadType: 'media' }, 
+            body: content, 
+        }); 
+    } catch (error) { 
+        console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); 
+        if (authExpired(error)) { 
+            updateSigninStatus(false); 
+            alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); 
+        }
+        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); 
+    } 
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function downloadFile(fileId, fileName) {
+    console.log(`Iniciando descarga de ${fileName}...`);
+    const fileContent = await loadData(fileId);
+    const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    console.log(`${fileName} descargado.`);
+}
+
+async function handleBackup() {
+    if (!appState.authToken) {
+        alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
+        return;
+    }
+
+    const backupBtn = document.getElementById('backupBtn');
+    backupBtn.disabled = true;
+    backupBtn.textContent = 'Respaldando...';
+
+    try {
+        const filesToBackup = [
+            { id: RESERVAS_FILE_ID, name: 'reservas.json' },
+            { id: CLIENTS_FILE_ID, name: 'clientes.json' },
+            { id: GASTOS_FILE_ID, name: 'gastos.json' }
+        ];
+
+        for (const file of filesToBackup) {
+            await downloadFile(file.id, file.name);
+            await sleep(1000);
+        }
+
+        alert('Back-up completado exitosamente.');
+
+    } catch (error) {
+        console.error('Error durante el proceso de back-up:', error);
+        alert(`Ocurrió un error al descargar los archivos: ${error.message}`);
+    } finally {
+        backupBtn.disabled = false;
+        backupBtn.textContent = 'Back-up';
+    }
+}
+
+
+// --- INICIALIZACIÓN ---
+function init() {
+    window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.exportData = exportData; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
+    window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
+    window.sendWhatsAppSummary = sendWhatsAppSummary;
+    window.handleDeletePhoto = handleDeletePhoto;
+    window.handleBackup = handleBackup;
+    window.sendGuestFormAuto = sendGuestFormAuto;
+    window.sendGuestFormManual = sendGuestFormManual;
+    window.generateGuestFormPDF = generateGuestFormPDF;
+    
+    // La carga inicial desde LocalStorage de feriados puede permanecer como fallback
+    const localFeriados = JSON.parse(localStorage.getItem('feriados'));
+    if(Array.isArray(localFeriados)) {
+        localFeriados.forEach(f => {
+            if (f.Fecha) {
+                 if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                 appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+            }
+            if (f.Dia_de_traslado) {
+                const movedDates = f.Dia_de_traslado.split(',');
+                movedDates.forEach(movedDate => {
+                   if (movedDate) {
+                       if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                       appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                   }
+                });
+            }
+        });
+    }
+
+    monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
+    const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
+    gapiScript.onload = gapiLoaded;
+    const gisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    gisScript.onload = gisLoaded;
+}
+init();
+</script>
+</body>
+</html>
+}

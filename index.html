@@ -38,6 +38,23 @@ th:nth-child(5){background:#a0c1e8}
 th:nth-child(6){background:#b79ddb;color:#fff}
 th:nth-child(7){background:#cc8bc7;color:#fff}
 .date-number{font-weight:bold;font-size:.8rem}
+/* Estilos para Feriados */
+.dia-feriado {
+    padding: 2px;
+    border: 1px solid #888;
+    border-radius: 4px;
+    display: inline-block;
+    line-height: 1;
+    cursor: help;
+}
+.feriado-original {
+    color: red !important;
+    font-weight: bold;
+}
+.feriado-trasladado {
+    color: blue !important;
+    font-weight: bold;
+}
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
 .status-bonif{background-color:#a0e9ff;color:#000;}
 .currency-dolares { color: red !important; font-weight: bold; }
@@ -280,6 +297,7 @@ const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
 const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
+const FERIADOS_FILE_ID = '10lfxphwKhZcjBpWSBQFVQuw9be7boMlr'; // <-- IMPORTANTE: Reemplazar este ID
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
@@ -294,12 +312,12 @@ const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino':
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // --- REFACTORIZACIÓN: Objeto de Estado Global ---
-// Este bloque asegura que las variables de estado solo se declaren una vez.
 if (typeof window.appState === 'undefined') {
     window.appState = {
-        reservas: [],
-        clientes: [],
-        gastos: [],
+        reservas: JSON.parse(localStorage.getItem('reservas')) || [],
+        clientes: JSON.parse(localStorage.getItem('clientes')) || [],
+        gastos: JSON.parse(localStorage.getItem('gastos')) || [],
+        feriadosMap: new Map(), // Usamos un Map para búsqueda rápida de feriados
         highlightedIds: [],
         y: new Date().getFullYear(),
         m: new Date().getMonth(),
@@ -317,7 +335,59 @@ function authExpired(err){
 // --- Lógica de Renderizado y UI ---
 function monthLabel() { document.getElementById('monthLabel').textContent = `${monthNames[appState.m]} ${appState.y}`; }
 function genGrid(Y, M) { const first=new Date(Y,M,1), last=new Date(Y,M+1,0); const start=((first.getDay()+6)%7), days=last.getDate(), out=[]; let week=Array(7).fill(null),d=1; for(let i=0;i<7;i++){if(i>=start)week[i]=new Date(Y,M,d++);} out.push(week); while(d<=days){week=Array(7).fill(null);for(let i=0;i<7&&d<=days;i++)week[i]=new Date(Y,M,d++);out.push(week);} while(out.length<6)out.push(Array(7).fill(null)); return out; }
-function render(prop) { const cont = document.getElementById('cal-' + prop); cont.innerHTML = ''; const tbl = document.createElement('table'); tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>'; const tbody = document.createElement('tbody'); genGrid(appState.y, appState.m).forEach(week => { const tr = document.createElement('tr'); week.forEach(day => { const td = document.createElement('td'); if (day) { td.innerHTML = `<div class="date-number">${day.getDate()}</div>`; const ds = day.toISOString().split('T')[0]; appState.reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled') .forEach(r => { const ev = document.createElement('div'); const platformInfo = r.platform || 'Otra'; if (r.total === 0) { ev.className = 'event status-bonif'; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`; } else { ev.className = `event status-${r.status}`; let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : ''; ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`; } if (r.currency === 'Dolares') ev.classList.add('currency-dolares'); if (appState.highlightedIds.includes(r.id)) ev.classList.add('highlight'); ev.onclick = e => { e.stopPropagation(); openEdit(r.id); }; ev.title = r.notes || 'Sin notas adicionales'; td.appendChild(ev); }); td.onclick = () => openModal({ property: prop, date: ds }); } tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); cont.appendChild(tbl); }
+function render(prop) {
+    const cont = document.getElementById('cal-' + prop);
+    cont.innerHTML = '';
+    const tbl = document.createElement('table');
+    tbl.innerHTML = '<thead><tr>' + ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => `<th>${d}</th>`).join('') + '</tr></thead>';
+    const tbody = document.createElement('tbody');
+    genGrid(appState.y, appState.m).forEach(week => {
+        const tr = document.createElement('tr');
+        week.forEach(day => {
+            const td = document.createElement('td');
+            if (day) {
+                const ds = day.toISOString().split('T')[0];
+                let dayContent = '';
+                const dayNumber = day.getDate();
+
+                if (appState.feriadosMap && appState.feriadosMap.has(ds)) {
+                    const holidays = appState.feriadosMap.get(ds);
+                    const mainHoliday = holidays[0];
+                    const allDescs = holidays.map(h => h.desc).join(' | ');
+                    const cssClass = mainHoliday.type === 'original' ? 'feriado-original' : 'feriado-trasladado';
+                    dayContent = `<div class="date-number"><span class="dia-feriado ${cssClass}" title="${allDescs}">${dayNumber}</span></div>`;
+                } else {
+                    dayContent = `<div class="date-number">${dayNumber}</div>`;
+                }
+                td.innerHTML = dayContent;
+
+                appState.reservas.filter(r => r.property === prop && ds >= r.checkIn && ds <= r.checkOut && r.status !== 'cancelled')
+                .forEach(r => {
+                    const ev = document.createElement('div');
+                    const platformInfo = r.platform || 'Otra';
+                    if (r.total === 0) {
+                        ev.className = 'event status-bonif';
+                        ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p (Bonif/Sorteo/Regalo)`;
+                    } else {
+                        ev.className = `event status-${r.status}`;
+                        let currencyIndicator = r.currency === 'Dolares' ? ' (USD)' : '';
+                        ev.textContent = `${r.guestName} (${platformInfo}) ${r.numGuests}p, Total: ${r.total}, Pagado: ${r.paid}, Saldo: ${r.due}${currencyIndicator}`;
+                    }
+                    if (r.currency === 'Dolares') ev.classList.add('currency-dolares');
+                    if (appState.highlightedIds.includes(r.id)) ev.classList.add('highlight');
+                    ev.onclick = e => { e.stopPropagation(); openEdit(r.id); };
+                    ev.title = r.notes || 'Sin notas adicionales';
+                    td.appendChild(ev);
+                });
+                td.onclick = () => openModal({ property: prop, date: ds });
+            }
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    cont.appendChild(tbl);
+}
 function renderAll(){props.forEach(render);refreshList();monthLabel();calculateFinancialSummary();}
 function switchCalendar(p){props.forEach(pr=>{ document.getElementById('cal-'+pr).classList.toggle('hidden',pr!==p); document.getElementById(`btn${pr.charAt(0).toUpperCase() + pr.slice(1)}`).classList.toggle('active',pr===p);});}
 function changeMonth(delta){appState.m+=delta;if(appState.m<0){appState.m=11;appState.y--;}else if(appState.m>11){appState.m=0;appState.y++;}renderAll();}
@@ -925,7 +995,7 @@ function generateGuestFormPDF() {
     try {
         const pdfNewDoc = new jsPDF({ unit: 'mm', format: 'a4' });
         
-        const pdfNewLogoBase64 = 'data:image/jpeg;base64,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C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1-yv+qQ/wA8xY36n0w/f8x49/zP/q/yH2/Jd+i/08N4R7sPvQ+9H7YfbD70e7D7ofTD1I9KPb/AL0n1fX1e/8AR39P/p1v/qQ/zxFjfql+6P2w9iPch9CH0o9pX1X8uX7pPtP7J/R/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/2J8F+yP2w9iPch9CH0o9pX1X8l/18v3Sfaf2T+j/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/wBifDPw/wB/gX7I/bD2I9yH0IfSj2lfVfyX/X/ry/dJ9p/ZP6P+ffyr/qW+n3Ef8P+vj7if2f6n3EetHpR/Jjf6pD/ADzFjfql+6X/AGJ8M/D/AH+Bfsj9sPYj3IfQh9KPaV9V/Jf9f+vL90n2n9k/o/59/Kv+pb6fcR/w/wCvj7if2f6n3EetHpR/J//EACwQAQABAwMCBQUBAQEBAAAAAAERACExQVFhcYGRobHB0RAg4fDxMEBQYHD/2gAIAQEAAT8h/wDygCq6Q0FqjY/n4H2Pq+p9X1Pq+p9X1OAKrpDQRqdj6sD4/R/j/H+P8f4/x/j+yEaI6yIq+D6uX/AD8/Pz8/Pz8/PzyNqJ6VfL/l+fS9L0vS9L0vS9L0vS9P+T/n0vS9L0vS9L0vS9LzP6eP8Al+vjYvS9L0vS9L0vS9LyjqiOlXy/X/l/gY/H+P8AH+P8f4/x/siOiOsiKng/XxB/n4H2Pq+p9X1Pq+p9X1P/AMd5lPz/AOZ/u/zP7v8AN/z/AEP6v3fz/wBj/P/ABn+D/U/83v9D77J9yffX3N+1X3l/WfdH3D9D9Cvvv7/APp/r/8AQf6D7zL99P2z/D/3+T/c+r/7n/l9z/P/AP/z1q1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1aQyI4G5LwX/g+c88oF4/6z/T+J+P8AgfufeR9pH3sfcj7kfeh+l8T+x+5+4P1eA9B4H3Phv+0ftJ9v6h+z9f8AR+n7T95PtI/Z4j1nj3/r+XhP8r8p5p/x38/L/v0/lI4G5LwX8n/AD7n/l3/AJHnPOPz/rP9P4n4/wCB+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/wBH6ftP3k+0j9nj3nj3/r+Xg/8Ar9p/K+ae/j+fl/36fyEcDcl4L+T/AJD/AMu/8jznm/j9T+J+P+B+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/0fp+0/eT7SP2ePeP2+v8vy8H/1+f9r5p7+P5/wCX/fp/IRwNyXgv5P8AkP8Ay7/yPOeb+P1P4n4/4H7n3kfaR95H3I+5H3ofpfE/sfuft/f6vAeg8D7nw3/aP2k+t/U/Z+v+j9P2n7yfaR+zx7x+31/l+Xg/wdr8/7XzT38fz/y/79P//Z';
+        const pdfNewLogoBase64 = 'data:image/jpeg;base64,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C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1+wWv2C1-yv+qQ/wA8xY36n0w/f8x49/zP/q/yH2/Jd+i/08N4R7sPvQ+9H7YfbD70e7D7ofTD1I9KPb/AL0n1fX1e/8AR39P/p1v/qQ/zxFjfql+6P2w9iPch9CH0o9pX1X8uX7pPtP7J/R/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/2J8F+yP2w9iPch9CH0o9pX1V8l/18v3Sfaf2T+j/wA+/lX/AFLfT7iPuJ/Z/qfcR60elH8mN/qQ/wA8xY36pful/wBifDPw/wB/gX7I/bD2I9yH0IfSj2lfVfyX/X/ry/dJ9p/ZP6P+ffyr/qW+n3Ef8P+vj7if2f6n3EetHpR/Jjf6pD/ADzFjfql+6X/AGJ8M/D/AH+Bfsj9sPYj3IfQh9KPaV9V/Jf9f+vL90n2n9k/o/59/Kv+pb6fcR/w/wCvj7if2f6n3EetHpR/J//EACwQAQABAwMCBQUBAQEBAAAAAAERACExQVFhcYGRobHB0RAg4fDxMEBQYHD/2gAIAQEAAT8h/wDygCq6Q0FqjY/n4H2Pq+p9X1Pq+p9X1OAKrpDQRqdj6sD4/R/j/H+P8f4/x/j+yEaI6yIq+D6uX/AD8/Pz8/Pz8/PzyNqJ6VfL/l+fS9L0vS9L0vS9L0vS9P+T/n0vS9L0vS9L0vS9LzP6eP8Al+vjYvS9L0vS9L0vS9LyjqiOlXy/X/l/gY/H+P8AH+P8f4/x/siOiOsiKng/XxB/n4H2Pq+p9X1Pq+p9X1P/AMd5lPz/AOZ/u/zP7v8AN/z/AEP6v3fz/wBj/P/ABn+D/U/83v9D77J9yffX3N+1X3l/WfdH3D9D9Cvvv7/APp/r/8AQf6D7zL99P2z/D/3+T/c+r/7n/l9z/P/AP/z1q1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1atWrVq1aQyI4G5LwX/g+c88oF4/6z/T+J+P8AgfufeR9pH3sfcj7kfeh+l8T+x+5+4P1eA9B4H3Phv+0ftJ9v6h+z9f8AR+n7T95PtI/Z4j1nj3/r+XhP8r8p5p/x38/L/v0/lI4G5LwX8n/AD7n/l3/AJHnPOPz/rP9P4n4/wCB+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/wBH6ftP3k+0j9nj3nj3/r+Xg/8Ar9p/K+ae/j+fl/36fyEcDcl4L+T/AJD/AMu/8jznm/j9T+J+P+B+595H2kfeR9yPuR96H6XxP7H7n7g/V4D0Hgfc+G/7R+0n2/qH7P1/0fp+0/eT7SP2ePeP2+v8vy8H/1+f9r5p7+P5/wCX/fp/IRwNyXgv5P8AkP8Ay7/yPOeb+P1P4n4/4H7n3kfaR95H3I+5H3ofpfE/sfuft/f6vAeg8D7nw3/aP2k+t/U/Z+v+j9P2n7yfaR+zx7x+31/l+Xg/wdr8/7XzT38fz/y/79P//Z';
 
         const pdfNewMargin = 15;
         const pdfNewPageWidth = pdfNewDoc.internal.pageSize.getWidth();
@@ -1080,7 +1150,8 @@ function gisLoaded() {
                 Promise.all([
                     loadReservasData(), 
                     loadClientsData(), 
-                    loadGastosData()
+                    loadGastosData(),
+                    loadFeriadosData()
                 ]).then(() => {
                     renderAll();
                 }).catch(error => {
@@ -1133,9 +1204,55 @@ async function loadData(fileId) {
         throw new Error(`No se pudo cargar el archivo ${fileId}.`);
     }
 }
-async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { alert("No se pudieron cargar las reservas desde Google Drive. Se usarán datos locales *al reingresar*." ); } }
-async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { alert("No se pudieron cargar los clientes desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { populateClientsDatalist(); } }
-async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { alert("No se pudieron cargar los gastos desde Google Drive. Se usarán datos locales *al reingresar*." ); } finally { calculateFinancialSummary(); } }
+async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { console.warn("No se pudieron cargar las reservas desde Google Drive." ); } }
+async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { console.warn("No se pudieron cargar los clientes desde Google Drive." ); } finally { populateClientsDatalist(); } }
+async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { console.warn("No se pudieron cargar los gastos desde Google Drive." ); } finally { calculateFinancialSummary(); } }
+async function loadFeriadosData() {
+    try {
+        const feriadosList = JSON.parse(await loadData(FERIADOS_FILE_ID));
+        appState.feriadosMap.clear();
+        if (Array.isArray(feriadosList)) {
+            feriadosList.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                            if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                            appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+        localStorage.setItem('feriados', JSON.stringify(feriadosList));
+    } catch (err) {
+        console.warn("No se pudieron cargar los feriados desde Google Drive. Se usarán datos locales si existen.", err);
+        // Si falla Drive, intenta cargar desde LocalStorage
+        const localFeriados = JSON.parse(localStorage.getItem('feriados'));
+        if(Array.isArray(localFeriados)) {
+            // Reprocesar para el Map
+             localFeriados.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                           if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                           appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+    }
+}
 async function saveData(fileId, data) { if (!gapi.client.getToken()) { throw new Error("No autenticado. Inicie sesión con Google para guardar."); } const content = JSON.stringify(data, null, 2); try { await gapi.client.request({ path: '/upload/drive/v3/files/' + fileId, method: 'PATCH', params: { uploadType: 'media' }, body: content, }); } catch (error) { console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); if (authExpired(error)) { updateSigninStatus(false); alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); }
         throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); } }
 
@@ -1202,6 +1319,26 @@ function init() {
     window.sendGuestFormAuto = sendGuestFormAuto;
     window.sendGuestFormManual = sendGuestFormManual;
     window.generateGuestFormPDF = generateGuestFormPDF;
+    
+    // Carga inicial desde LocalStorage para una experiencia offline más rápida
+    const localFeriados = JSON.parse(localStorage.getItem('feriados'));
+    if(Array.isArray(localFeriados)) {
+        localFeriados.forEach(f => {
+            if (f.Fecha) {
+                 if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                 appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+            }
+            if (f.Dia_de_traslado) {
+                const movedDates = f.Dia_de_traslado.split(',');
+                movedDates.forEach(movedDate => {
+                   if (movedDate) {
+                       if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                       appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                   }
+                });
+            }
+        });
+    }
 
     monthLabel(); renderAll(); switchCalendar('beltran4'); populateClientsDatalist();
     const gapiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');

@@ -45,7 +45,7 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
     border-radius: 4px;
     display: inline-block;
     line-height: 1;
-    cursor: pointer; /* Cambiado a pointer para indicar que es clickeable */
+    cursor: pointer;
 }
 .feriado-original {
     color: red !important;
@@ -76,8 +76,6 @@ th:nth-child(7){background:#cc8bc7;color:#fff}
 .financial-summary .expanded-breakdown-item strong{margin-right: 5px; white-space:nowrap;}
 .financial-summary .expanded-breakdown-item span{margin-right: 10px; white-space:nowrap;}
 footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; padding:10px;}
-
-/* Estilos para el módulo de gastos */
 .expenses-abm-container { display: flex; gap: 20px; flex-wrap: wrap; }
 .expenses-list { flex: 2; min-width: 300px; max-height: 400px; overflow-y: auto; }
 .expenses-form { flex: 1; min-width: 250px; background-color: #f9f9f9; padding: 10px; border-radius: 6px;}
@@ -92,35 +90,14 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
 .expenses-summary-table th, .expenses-summary-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
 .expenses-summary-table th { background-color: #f2f2f2; text-align: left; color: #333; }
 .expenses-summary-table .total-row { font-weight: bold; background-color: #e9e9e9; }
-
-/* Estilos para la miniatura de la foto en la lista */
 .photo-link { display: inline-block; vertical-align: middle; }
-.list-thumbnail {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-  vertical-align: middle;
-  border: 1px solid #ccc;
-  margin-left: 6px;
-  background-color: #fff;
-}
-/* Estilo para el nuevo enlace de huésped en la lista de check-in */
-.guest-link {
-    color: #2980b9;
-    text-decoration: underline;
-    cursor: pointer;
-    font-weight: bold;
-}
-.guest-link:hover {
-    color: #3498db;
-}
-
+.list-thumbnail { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; border: 1px solid #ccc; margin-left: 6px; background-color: #fff; }
+.guest-link { color: #2980b9; text-decoration: underline; cursor: pointer; font-weight: bold; }
+.guest-link:hover { color: #3498db; }
 .inline-datetime { display: flex; align-items: center; gap: 6px; }
 .inline-datetime input[type="date"] { flex: 1 1 auto; min-width: 0; }
 .time-select { width: 56px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
 .inline-datetime .time-sep { font-weight: bold; }
-
 </style>
 </head>
 <body>
@@ -301,7 +278,6 @@ const FERIADOS_FILE_ID = '10lfxphwKhZcjBpWSBQFVQuw9be7boMlr';
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
-// --- MODIFICADO: Se declara tokenClient en el scope global para el nuevo flujo ---
 let gapiInited = false, gisInited = false, tokenClient;
 const authBtn = document.getElementById('authBtn'), signoutBtn = document.getElementById('signoutBtn');
 
@@ -312,11 +288,13 @@ const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad',
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+// --- MODIFICADO: El estado arranca en blanco y gestiona el token ---
 if (typeof window.appState === 'undefined') {
     window.appState = {
-        reservas: JSON.parse(localStorage.getItem('reservas')) || [],
-        clientes: JSON.parse(localStorage.getItem('clientes')) || [],
-        gastos: JSON.parse(localStorage.getItem('gastos')) || [],
+        reservas: [],
+        clientes: [],
+        gastos: [],
+        authToken: null, // Guardará el token de autenticación
         feriadosMap: new Map(),
         highlightedIds: [],
         y: new Date().getFullYear(),
@@ -563,7 +541,7 @@ function handleDeletePhoto() {
 }
 
 async function uploadPhoto(file) {
-    if (!gapi.client.oauth2.token || !gapi.client.oauth2.token.access_token) {
+    if (!appState.authToken) {
         throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
     }
     if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
@@ -571,7 +549,7 @@ async function uploadPhoto(file) {
     }
 
     try {
-        const accessToken = gapi.client.oauth2.token.access_token;
+        const accessToken = appState.authToken.access_token;
         const metadata = {
             'name': `${Date.now()}_${file.name}`,
             'parents': [CLIENT_PHOTOS_FOLDER_ID]
@@ -940,18 +918,11 @@ function sendWhatsAppSummary() {
 function sendGuestFormAuto() {
     const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
     if (!phone || phone.trim() === '') return;
-
     const cleanedPhone = phone.replace(/\D/g, '');
-    if (cleanedPhone.length < 8) {
-        alert("El número de teléfono parece inválido.");
-        return;
-    }
-
+    if (cleanedPhone.length < 8) { alert("El número de teléfono parece inválido."); return; }
     const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
     const formUrl = baseUrl + 'datos%20huesped.html';
-
     const message = `Hola! ¿Cómo estás? 😊\nPara agilizar tu check-in, por favor por un tema de seguridad completá este mini formulario (hace click en el link) y, al finalizar, clickea el botón Enviar por WhatsApp. Enviame adicionalmente, también foto frente y dorso del DNI de cada huésped mayor de 18 años (que se vea claro, sin reflejos y con los bordes completos). Gracias 🙌\n\n${formUrl}`;
-    
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
@@ -960,15 +931,9 @@ function sendGuestFormAuto() {
 function sendGuestFormManual() {
     const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
     if (!phone || phone.trim() === '') return;
-
     const cleanedPhone = phone.replace(/\D/g, '');
-    if (cleanedPhone.length < 8) {
-        alert("El número de teléfono parece inválido.");
-        return;
-    }
-
+    if (cleanedPhone.length < 8) { alert("El número de teléfono parece inválido."); return; }
     const message = `Hola! ¿Cómo estás? 😊, te solicitamos algunos datos que necesitamos para asegurar tu reserva, registrarte y por seguridad. Podés responderme las siguientes preguntas acá mismo copiando y completando estas líneas:\n\n*FORMULARIO DE INGRESO (respuesta por WhatsApp)*\n\n• Nombre y apellido del contratante:\n• DNI del contratante (solo números):\n• Email del contratante:\n• Teléfono (con característica):\n• Primera noche (dd/mm/aaaa):\n• Última noche (dd/mm/aaaa): (es la última noche que DUERMEN; el checkout es al día siguiente)\n• Cantidad de huéspedes:\n• Horario de ingreso (≥ 13:00, formato 24 horas hh:mm)\n\nAdjuntar adicionalmente: fotos de frente y dorso del DNI de cada huésped mayor de 18 años. Gracias!!`;
-    
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
@@ -987,129 +952,51 @@ function generateGuestFormPDF() {
 
     try {
         const pdfNewDoc = new jsPDF({ unit: 'mm', format: 'a4' });
-        
         const pdfNewLogoBase64 = '';
-
         const pdfNewMargin = 15;
         const pdfNewPageWidth = pdfNewDoc.internal.pageSize.getWidth();
         const pdfNewContentWidth = pdfNewPageWidth - (pdfNewMargin * 2);
-
         const pdfNewCurrentDate = new Date();
         const pdfNewDay = String(pdfNewCurrentDate.getDate()).padStart(2, '0');
         const pdfNewMonth = String(pdfNewCurrentDate.getMonth() + 1).padStart(2, '0');
         const pdfNewYear = pdfNewCurrentDate.getFullYear();
         const pdfNewFormattedDate = `${pdfNewDay}/${pdfNewMonth}/${pdfNewYear}`;
-
-        const pdfHelperFormatDate = (dateString) => {
-            if (!dateString) return '---';
-            const [y, m, d] = dateString.split('-');
-            return `${d}/${m}/${y}`;
-        };
-        const pdfHelperGetAddress = (property) => {
-            if (property === 'beltran4') return 'Fray Luis Beltran 35 4to A ';
-            if (property === 'beltran8') return 'Fray Luis Beltran 35 8vo A ';
-            if (property === 'directorio8') return 'Avda Directorio 1019 8vo A Caballito ';
-            return '---';
-        };
-        const pdfHelperGetCheckoutDate = (dateString) => {
-            if (!dateString) return '---';
-            const checkout = new Date(dateString + 'T00:00:00Z');
-            checkout.setDate(checkout.getDate() + 1);
-            const d = String(checkout.getUTCDate()).padStart(2, '0');
-            const m = String(checkout.getUTCMonth() + 1).padStart(2, '0');
-            const y = checkout.getUTCFullYear();
-            return `${d}/${m}/${y} (11:00 AM)`;
-        };
-        
-        if (pdfNewLogoBase64) {
-            const pdfNewLogoWidth = 30;
-            const pdfNewLogoHeight = 30;
-            const pdfNewLogoX = pdfNewPageWidth - pdfNewMargin - pdfNewLogoWidth;
-            pdfNewDoc.addImage(pdfNewLogoBase64, 'JPEG', pdfNewLogoX, 10, pdfNewLogoWidth, pdfNewLogoHeight);
-        }
-
-        pdfNewDoc.setFontSize(14);
-        pdfNewDoc.setFont(undefined, 'bold');
-        pdfNewDoc.text('Formulario de Ingreso - Alquiler Temporario', pdfNewMargin, 20);
-
-        pdfNewDoc.setFontSize(10);
-        pdfNewDoc.setFont(undefined, 'normal');
-        pdfNewDoc.text(`Buenos Aires, ${pdfNewFormattedDate}`, pdfNewMargin, 26);
-        
-        pdfNewDoc.setDrawColor(200, 200, 200);
-        pdfNewDoc.setLineWidth(0.5);
-        pdfNewDoc.line(pdfNewMargin, 45, pdfNewPageWidth - pdfNewMargin, 45);
-        
+        const pdfHelperFormatDate = (dateString) => { if (!dateString) return '---'; const [y, m, d] = dateString.split('-'); return `${d}/${m}/${y}`; };
+        const pdfHelperGetAddress = (property) => { if (property === 'beltran4') return 'Fray Luis Beltran 35 4to A '; if (property === 'beltran8') return 'Fray Luis Beltran 35 8vo A '; if (property === 'directorio8') return 'Avda Directorio 1019 8vo A Caballito '; return '---'; };
+        const pdfHelperGetCheckoutDate = (dateString) => { if (!dateString) return '---'; const checkout = new Date(dateString + 'T00:00:00Z'); checkout.setDate(checkout.getDate() + 1); const d = String(checkout.getUTCDate()).padStart(2, '0'); const m = String(checkout.getUTCMonth() + 1).padStart(2, '0'); const y = checkout.getUTCFullYear(); return `${d}/${m}/${y} (11:00 AM)`; };
+        if (pdfNewLogoBase64) { const pdfNewLogoWidth = 30; const pdfNewLogoHeight = 30; const pdfNewLogoX = pdfNewPageWidth - pdfNewMargin - pdfNewLogoWidth; pdfNewDoc.addImage(pdfNewLogoBase64, 'JPEG', pdfNewLogoX, 10, pdfNewLogoWidth, pdfNewLogoHeight); }
+        pdfNewDoc.setFontSize(14); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Formulario de Ingreso - Alquiler Temporario', pdfNewMargin, 20);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); pdfNewDoc.text(`Buenos Aires, ${pdfNewFormattedDate}`, pdfNewMargin, 26);
+        pdfNewDoc.setDrawColor(200, 200, 200); pdfNewDoc.setLineWidth(0.5); pdfNewDoc.line(pdfNewMargin, 45, pdfNewPageWidth - pdfNewMargin, 45);
         let pdfNewYPos = 55;
-
-        pdfNewDoc.setFillColor(245, 245, 245);
-        pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 30, 3, 3, 'FD');
-        pdfNewDoc.setFontSize(12);
-        pdfNewDoc.setFont(undefined, 'bold');
-        pdfNewDoc.text('Datos de la Estancia', pdfNewMargin + 5, pdfNewYPos + 8);
-        
-        pdfNewDoc.setFontSize(10);
-        pdfNewDoc.setFont(undefined, 'normal');
-        const pdfNewStayDataCol1X = pdfNewMargin + 7;
-        const pdfNewStayDataCol2X = pdfNewMargin + 100;
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 30, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Datos de la Estancia', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); const pdfNewStayDataCol1X = pdfNewMargin + 7; const pdfNewStayDataCol2X = pdfNewMargin + 100;
         pdfNewDoc.text(`Fecha de ingreso: ${pdfHelperFormatDate(pdfGenCurrentReservation.checkIn)}`, pdfNewStayDataCol1X, pdfNewYPos + 18);
         pdfNewDoc.text(`Dirección: ${pdfHelperGetAddress(pdfGenCurrentReservation.property)}`, pdfNewStayDataCol1X, pdfNewYPos + 24);
         pdfNewDoc.text(`Fecha de egreso: ${pdfHelperGetCheckoutDate(pdfGenCurrentReservation.checkOut)}`, pdfNewStayDataCol2X, pdfNewYPos + 18);
-
         pdfNewYPos += 40;
-
-        pdfNewDoc.setFillColor(245, 245, 245);
-        pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 68, 3, 3, 'FD');
-        pdfNewDoc.setFontSize(12);
-        pdfNewDoc.setFont(undefined, 'bold');
-        pdfNewDoc.text('Declaración del Huésped', pdfNewMargin + 5, pdfNewYPos + 8);
-        
-        pdfNewDoc.setFontSize(9);
-        pdfNewDoc.setFont(undefined, 'normal');
-        const pdfNewDeclarationText = [
-            'Yo, el/la abajo firmante, declaro que:',
-            '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o temporarios.',
-            '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble, sus instalaciones y bienes.',
-            '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por personas que me acompañen.',
-            '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de permanencia, ya que el uso es estrictamente temporario.',
-            '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al propietario a conservar una copia de mi DNI para fines de seguridad.'
-        ];
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 68, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Declaración del Huésped', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(9); pdfNewDoc.setFont(undefined, 'normal');
+        const pdfNewDeclarationText = [ 'Yo, el/la abajo firmante, declaro que:', '1. Me hospedaré en el departamento mencionado con fines exclusivamente turísticos o temporarios.', '2. Me comprometo a respetar las normas del edificio y hacer uso responsable del inmueble, sus instalaciones y bienes.', '3. Me hago responsable por cualquier daño causado durante mi estadía, ya sea por mí o por personas que me acompañen.', '4. Acepto que este no es un contrato de alquiler tradicional ni genera derecho de permanencia, ya que el uso es estrictamente temporario.', '5. Declaro que los datos consignados a continuación son verdaderos y autorizo al propietario a conservar una copia de mi DNI para fines de seguridad.' ];
         pdfNewDoc.text(pdfNewDeclarationText, pdfNewMargin + 7, pdfNewYPos + 18, { maxWidth: pdfNewContentWidth - 14, lineHeightFactor: 1.5 });
-        
         pdfNewYPos += 78;
-
-        pdfNewDoc.setFillColor(245, 245, 245);
-        pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 42, 3, 3, 'FD');
-        pdfNewDoc.setFontSize(12);
-        pdfNewDoc.setFont(undefined, 'bold');
-        pdfNewDoc.text('Datos Personales del Contratante', pdfNewMargin + 5, pdfNewYPos + 8);
-
-        pdfNewDoc.setFontSize(10);
-        pdfNewDoc.setFont(undefined, 'normal');
-        const pdfNewGuestDataCol1X = pdfNewMargin + 7;
-        const pdfNewGuestDataCol2X = pdfNewMargin + 100;
+        pdfNewDoc.setFillColor(245, 245, 245); pdfNewDoc.roundedRect(pdfNewMargin, pdfNewYPos, pdfNewContentWidth, 42, 3, 3, 'FD');
+        pdfNewDoc.setFontSize(12); pdfNewDoc.setFont(undefined, 'bold'); pdfNewDoc.text('Datos Personales del Contratante', pdfNewMargin + 5, pdfNewYPos + 8);
+        pdfNewDoc.setFontSize(10); pdfNewDoc.setFont(undefined, 'normal'); const pdfNewGuestDataCol1X = pdfNewMargin + 7; const pdfNewGuestDataCol2X = pdfNewMargin + 100;
         pdfNewDoc.text(`Nombre y Apellido: ${pdfGenCurrentReservation.guestName || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 18);
         pdfNewDoc.text(`DNI: ${pdfGenCurrentReservation.guestDni || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 24);
         pdfNewDoc.text(`Teléfono: ${pdfGenCurrentReservation.guestPhone1 || '---'}`, pdfNewGuestDataCol1X, pdfNewYPos + 30);
         pdfNewDoc.text(`Correo Electrónico: ${pdfGenCurrentReservation.guestEmail || '---'}`, pdfNewGuestDataCol2X, pdfNewYPos + 18);
         pdfNewDoc.text(`Cantidad de Huéspedes: ${pdfGenCurrentReservation.numGuests || '---'}`, pdfNewGuestDataCol2X, pdfNewYPos + 24);
-
         pdfNewYPos += 55;
-        
-        pdfNewDoc.setFontSize(11);
-        pdfNewDoc.setFont(undefined, 'normal');
-        pdfNewDoc.text('Firma del huésped:', pdfNewMargin, pdfNewYPos);
+        pdfNewDoc.setFontSize(11); pdfNewDoc.setFont(undefined, 'normal'); pdfNewDoc.text('Firma del huésped:', pdfNewMargin, pdfNewYPos);
         pdfNewDoc.line(pdfNewMargin + 40, pdfNewYPos, pdfNewMargin + 100, pdfNewYPos);
-        
         pdfNewDoc.text('Firma del propietario/responsable:', pdfNewMargin, pdfNewYPos + 15);
         pdfNewDoc.line(pdfNewMargin + 70, pdfNewYPos + 15, pdfNewMargin + 130, pdfNewYPos + 15);
-
         pdfNewDoc.save(`Formulario-Ingreso-${pdfGenCurrentReservation.guestName.replace(/ /g, '_')}.pdf`);
-
-    } catch (error) {
-        console.error("Error al generar el PDF:", error);
-        alert(`Ocurrió un error al generar el PDF: ${error.message}`);
-    }
+    } catch (error) { console.error("Error al generar el PDF:", error); alert(`Ocurrió un error al generar el PDF: ${error.message}`); }
 }
 
 
@@ -1139,6 +1026,9 @@ function gisLoaded() {
         if (tokenResponse && tokenResponse.access_token) {
             gapi.client.setToken(tokenResponse);
             updateSigninStatus(true);
+            
+            // --- MODIFICADO: Se gestiona el token en el estado de la app ---
+            appState.authToken = tokenResponse;
 
             Promise.all([
                 loadReservasData(), 
@@ -1166,7 +1056,7 @@ function gisLoaded() {
 
 
 function handleSignoutClick() { 
-    const token = gapi.client.oauth2.token;
+    const token = appState.authToken;
     if (token) { 
         google.accounts.oauth2.revoke(token.access_token, () => {
             gapi.client.setToken(''); 
@@ -1182,10 +1072,18 @@ function updateSigninStatus(isSignedIn) {
     } else {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
+        
+        // --- MODIFICADO: Limpieza completa al cerrar sesión ---
+        appState.authToken = null;
         appState.reservas = [];
         appState.clientes = [];
         appState.gastos = [];
         appState.feriadosMap.clear();
+        
+        localStorage.removeItem('reservas');
+        localStorage.removeItem('clientes');
+        localStorage.removeItem('gastos');
+        
         renderAll();
     }
 }
@@ -1254,7 +1152,7 @@ async function loadFeriadosData() {
 }
 
 async function saveData(fileId, data) { 
-    if (!gapi.client.oauth2.token) { 
+    if (!appState.authToken) { 
         throw new Error("No autenticado. Inicie sesión con Google para guardar."); 
     } 
     const content = JSON.stringify(data, null, 2); 
@@ -1294,7 +1192,7 @@ async function downloadFile(fileId, fileName) {
 }
 
 async function handleBackup() {
-    if (!gapi.client.oauth2.token) {
+    if (!appState.authToken) {
         alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
         return;
     }
@@ -1338,6 +1236,7 @@ function init() {
     window.sendGuestFormManual = sendGuestFormManual;
     window.generateGuestFormPDF = generateGuestFormPDF;
     
+    // La carga inicial desde LocalStorage de feriados puede permanecer como fallback
     const localFeriados = JSON.parse(localStorage.getItem('feriados'));
     if(Array.isArray(localFeriados)) {
         localFeriados.forEach(f => {
@@ -1367,5 +1266,3 @@ init();
 </script>
 </body>
 </html>
-}
-ok

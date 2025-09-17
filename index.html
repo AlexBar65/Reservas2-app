@@ -99,6 +99,7 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
 .inline-datetime input[type="date"] { flex: 1 1 auto; min-width: 0; }
 .time-select { width: 56px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
 .inline-datetime .time-sep { font-weight: bold; }
+#reservasExportModal .form-grid, #gastosExportModal .form-grid { grid-template-columns: auto 1fr; align-items: center;}
 </style>
 </head>
 <body>
@@ -157,7 +158,8 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
 </main>
 
 <footer>
-  <button class="action-btn secondary" onclick="exportData()">Exportar CSV</button>
+  <button class="action-btn secondary" onclick="openReservasExportModal()">Exportar Reservas CSV</button>
+  <button class="action-btn secondary" onclick="openGastosExportModal()">Exportar Gastos CSV</button>
   <button class="action-btn" onclick="openExpensesABM()">Gestión de Gastos</button>
   <button class="action-btn" onclick="openExpensesVisual()">Visualizar Gastos</button>
   <button class="action-btn" style="background-color: #25D366;" onclick="sendWhatsAppSummary()">Enviar Resumen por WhatsApp</button>
@@ -266,6 +268,40 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
     <div class="modal-actions">
       <button type="button" class="action-btn secondary" onclick="closeExpensesVisual()">Cerrar</button>
     </div>
+  </div>
+</div>
+
+<div id="reservasExportModal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2>Exportar Reservas a CSV</h2>
+    <form id="reservasExportForm" class="form-grid" onsubmit="event.preventDefault(); handleExportReservas();">
+      <label for="exportResPeriodo">Período:</label>
+      <select id="exportResPeriodo"></select>
+      <label for="exportResDepto">Departamento:</label>
+      <select id="exportResDepto"></select>
+      <div class="modal-actions full-width">
+        <button type="button" class="action-btn secondary" onclick="closeReservasExportModal()">Cancelar</button>
+        <button type="submit" class="action-btn">Generar CSV</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="gastosExportModal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2>Exportar Gastos a CSV</h2>
+    <form id="gastosExportForm" class="form-grid" onsubmit="event.preventDefault(); handleExportGastos();">
+      <label for="exportGasPeriodo">Período:</label>
+      <select id="exportGasPeriodo"></select>
+      <label for="exportGasDepto">Departamento:</label>
+      <select id="exportGasDepto"></select>
+      <label for="exportGasTipo">Tipo de Gasto:</label>
+      <select id="exportGasTipo"></select>
+      <div class="modal-actions full-width">
+        <button type="button" class="action-btn secondary" onclick="closeGastosExportModal()">Cancelar</button>
+        <button type="submit" class="action-btn">Generar CSV</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -814,6 +850,162 @@ async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de qu
 function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
 function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
 
+// --- Lógica de Exportación CSV ---
+function downloadCsv(filename, csvContent) {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+function openReservasExportModal() {
+    const periodoSelect = document.getElementById('exportResPeriodo');
+    const deptoSelect = document.getElementById('exportResDepto');
+    
+    // Populate periods
+    const periodos = [...new Set(appState.reservas.map(r => r.checkIn.substring(0, 7).replace('-', '')))].sort((a, b) => b.localeCompare(a));
+    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
+    periodos.forEach(p => {
+        const year = p.substring(0, 4);
+        const month = parseInt(p.substring(4, 6), 10) - 1;
+        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
+    });
+
+    // Populate departments
+    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
+    props.forEach(p => {
+        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
+    });
+
+    document.getElementById('reservasExportModal').classList.remove('hidden');
+}
+
+function closeReservasExportModal() {
+    document.getElementById('reservasExportModal').classList.add('hidden');
+}
+
+function handleExportReservas() {
+    const selectedPeriodo = document.getElementById('exportResPeriodo').value;
+    const selectedDepto = document.getElementById('exportResDepto').value;
+
+    let dataToExport = appState.reservas;
+
+    if (selectedPeriodo !== 'todos') {
+        dataToExport = dataToExport.filter(r => r.checkIn.substring(0, 7).replace('-', '') === selectedPeriodo);
+    }
+    if (selectedDepto !== 'todos') {
+        dataToExport = dataToExport.filter(r => r.property === selectedDepto);
+    }
+
+    if (!dataToExport.length) {
+        alert('No hay datos para exportar con los filtros seleccionados.');
+        return;
+    }
+
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
+    const csvRows = [csvHeader];
+    
+    dataToExport.forEach(r => {
+        const checkInDate = new Date(r.checkIn + 'T00:00:00');
+        const year = checkInDate.getFullYear();
+        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
+        const periodo = `${year}${month}`;
+        let totalArs = r.total;
+        let paidArs = r.paid;
+        let dueArs = r.due;
+        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const totalNet = totalArs - commission;
+        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
+        csvRows.push(row);
+    });
+    
+    downloadCsv('reservas_export.csv', csvRows.join('\n'));
+    closeReservasExportModal();
+}
+
+function openGastosExportModal() {
+    const periodoSelect = document.getElementById('exportGasPeriodo');
+    const deptoSelect = document.getElementById('exportGasDepto');
+    const tipoSelect = document.getElementById('exportGasTipo');
+
+    // Populate periods
+    const periodos = [...new Set(appState.gastos.map(g => g.periodo))].sort((a, b) => b.localeCompare(a));
+    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
+    periodos.forEach(p => {
+        const year = p.substring(0, 4);
+        const month = parseInt(p.substring(4, 6), 10) - 1;
+        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
+    });
+
+    // Populate departments
+    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
+    props.forEach(p => {
+        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
+    });
+
+    // Populate expense types
+    tipoSelect.innerHTML = '<option value="todos">Todos los Tipos</option>';
+    expenseTypes.forEach(t => {
+        tipoSelect.innerHTML += `<option value="${t}">${t}</option>`;
+    });
+
+    document.getElementById('gastosExportModal').classList.remove('hidden');
+}
+
+function closeGastosExportModal() {
+    document.getElementById('gastosExportModal').classList.add('hidden');
+}
+
+function handleExportGastos() {
+    const selectedPeriodo = document.getElementById('exportGasPeriodo').value;
+    const selectedDepto = document.getElementById('exportGasDepto').value;
+    const selectedTipo = document.getElementById('exportGasTipo').value;
+
+    let dataToExport = appState.gastos;
+
+    if (selectedPeriodo !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.periodo === selectedPeriodo);
+    }
+    if (selectedDepto !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.departamento === selectedDepto);
+    }
+    if (selectedTipo !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.tipoGasto === selectedTipo);
+    }
+
+    if (!dataToExport.length) {
+        alert('No hay gastos para exportar con los filtros seleccionados.');
+        return;
+    }
+
+    const csvHeader = 'Período,Departamento,Tipo de Gasto,Monto,Descripción';
+    const csvRows = [csvHeader];
+
+    dataToExport.forEach(g => {
+        const row = [
+            g.periodo,
+            propNames[g.departamento] || g.departamento,
+            g.tipoGasto,
+            g.monto,
+            `"${(g.descripcion || '').replace(/"/g, '""')}"`
+        ].join(',');
+        csvRows.push(row);
+    });
+
+    downloadCsv('gastos_export.csv', csvRows.join('\n'));
+    closeGastosExportModal();
+}
+
+
 function calculateFinancialSummary(selectedPropOverride = null) {
     if (selectedPropOverride) {
         appState.currentSummaryProp = selectedPropOverride;
@@ -877,30 +1069,6 @@ function calculateFinancialSummary(selectedPropOverride = null) {
         const propData = byProperty[appState.currentSummaryProp];
         breakdownContainer.innerHTML = `<div class="compact-view"><select id="summaryPropSelect" onchange="calculateFinancialSummary(this.value)">${props.map(p => `<option value="${p}" ${p === appState.currentSummaryProp ? 'selected' : ''}>${propNames[p]}</option>`).join('')}</select> <span><strong>Ingresos:</strong> $${formatNumber(propData.total)}</span> <span><strong>Ingresos Netos:</strong> $${formatNumber(propData.net)}</span> <span><strong>Egresos:</strong> $${formatNumber(propData.expenses)}</span> <span><strong>NIAT:</strong> $${formatNumber(propData.niat)}</span> <span><strong>Cobrado:</strong> $${formatNumber(propData.paid)}</span> <span><strong>Saldo:</strong> $${formatNumber(propData.due)}</span></div>`;
     }
-}
-function exportData() {
-    if (!appState.reservas.length) { alert('No hay datos para exportar.'); return; }
-    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
-    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
-    const csvRows = [csvHeader];
-    appState.reservas.forEach(r => {
-        const checkInDate = new Date(r.checkIn + 'T00:00:00');
-        const year = checkInDate.getFullYear();
-        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
-        const periodo = `${year}${month}`;
-        let totalArs = r.total;
-        let paidArs = r.paid;
-        let dueArs = r.due;
-        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
-        const commissionRate = commissionRates[r.platform] || 0;
-        const commission = totalArs * commissionRate;
-        const totalNet = totalArs - commission;
-        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
-        csvRows.push(row);
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'reservas_export.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
 function sendWhatsAppSummary() {
@@ -1240,7 +1408,7 @@ async function handleBackup() {
 
 // --- INICIALIZACIÓN ---
 function init() {
-    window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.exportData = exportData; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
+    window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
     window.openExpensesABM = openExpensesABM; window.closeExpensesABM = closeExpensesABM; window.handleSaveGasto = handleSaveGasto; window.handleEditGasto = handleEditGasto; window.handleDeleteGasto = handleDeleteGasto; window.resetExpensesForm = resetExpensesForm; window.openExpensesVisual = openExpensesVisual; window.closeExpensesVisual = closeExpensesVisual;
     window.sendWhatsAppSummary = sendWhatsAppSummary;
     window.handleDeletePhoto = handleDeletePhoto;
@@ -1248,6 +1416,13 @@ function init() {
     window.sendGuestFormAuto = sendGuestFormAuto;
     window.sendGuestFormManual = sendGuestFormManual;
     window.generateGuestFormPDF = generateGuestFormPDF;
+    // --- NUEVAS FUNCIONES DE EXPORTACIÓN ---
+    window.openReservasExportModal = openReservasExportModal;
+    window.closeReservasExportModal = closeReservasExportModal;
+    window.handleExportReservas = handleExportReservas;
+    window.openGastosExportModal = openGastosExportModal;
+    window.closeGastosExportModal = closeGastosExportModal;
+    window.handleExportGastos = handleExportGastos;
     
     // La carga inicial desde LocalStorage de feriados puede permanecer como fallback
     const localFeriados = JSON.parse(localStorage.getItem('feriados'));

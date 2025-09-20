@@ -30,7 +30,6 @@ th,td{border:1px solid #ddd;padding:2px;vertical-align:top;font-size:.75rem;heig
 th {height: 45px;text-align: center;vertical-align: middle;font-weight: bold;font-size: 1rem;}
 .event{display:block;margin-top:2px;padding:1px 2px;border-radius:3px;line-height:1.1;word-break:break-word;cursor: pointer;font-size: 0.8rem;}
 .highlight { border: 2px solid #2980b9; box-shadow: 0 0 5px #2980b9; }
-/* --- REGLAS DE CSS CORREGIDAS --- */
 .calendar th:nth-child(1){background:#f28c8c;color:#fff}
 .calendar th:nth-child(2){background:#e7b97d;color:#fff}
 .calendar th:nth-child(3){background:#cfe3a1}
@@ -39,23 +38,9 @@ th {height: 45px;text-align: center;vertical-align: middle;font-weight: bold;fon
 .calendar th:nth-child(6){background:#b79ddb;color:#fff}
 .calendar th:nth-child(7){background:#cc8bc7;color:#fff}
 .date-number{font-weight:bold;font-size:.8rem}
-/* Estilos para Feriados */
-.dia-feriado {
-    padding: 2px;
-    border: 1px solid #888;
-    border-radius: 4px;
-    display: inline-block;
-    line-height: 1;
-    cursor: pointer;
-}
-.feriado-original {
-    color: red !important;
-    font-weight: bold;
-}
-.feriado-trasladado {
-    color: blue !important;
-    font-weight: bold;
-}
+.dia-feriado { padding: 2px; border: 1px solid #888; border-radius: 4px; display: inline-block; line-height: 1; cursor: pointer; }
+.feriado-original { color: red !important; font-weight: bold; }
+.feriado-trasladado { color: blue !important; font-weight: bold; }
 .status-pending{background:#ffe082}.status-paid{background:#81c784}.status-cancelled{background:#e57373;color:#fff;text-decoration:line-through}
 .status-bonif{background-color:#a0e9ff;color:#000;}
 .currency-dolares { color: red !important; font-weight: bold; }
@@ -100,9 +85,61 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
 .time-select { width: 56px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
 .inline-datetime .time-sep { font-weight: bold; }
 #reservasExportModal .form-grid, #gastosExportModal .form-grid { grid-template-columns: auto 1fr; align-items: center;}
+
+/* --- ESTILOS DEL NUEVO MENÚ --- */
+.top-menu { background-color: #3d5065; padding: 0 10px; display: flex; justify-content: flex-start; z-index: 1001; }
+.menu-item { position: relative; color: #ecf0f1; padding: 10px 15px; cursor: pointer; font-size: 0.9em; border: none; background: none; }
+.menu-item:hover { background-color: #4a627a; }
+.dropdown-content { display: none; position: absolute; background-color: #f9f9f9; min-width: 180px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; list-style: none; padding: 0; margin: 0; border-radius: 4px; border: 1px solid #ddd; }
+.menu-item:hover .dropdown-content { display: block; }
+.dropdown-content li a { color: black; padding: 10px 15px; text-decoration: none; display: block; font-size: 0.9em; }
+.dropdown-content li a:hover { background-color: #f1f1f1; }
+.separator { border-top: 1px solid #e0e0e0; margin: 4px 0; }
+#aboutModal .modal-content { max-width: 400px; text-align: center; }
+#aboutModal #logoContainer { min-height: 150px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; }
+#aboutModal #logoContainer img { max-width: 100%; max-height: 150px; }
+#aboutModal #versionInfo { font-size: 0.9em; color: #7f8c8d; margin-top: 10px; }
 </style>
 </head>
 <body>
+
+<nav class="top-menu">
+  <div class="menu-item">
+    <span>Archivo</span>
+    <ul class="dropdown-content">
+      <li><a href="#" onclick="openModal()">Nueva Reserva</a></li>
+      <li class="separator"></li>
+      <li><a href="#" onclick="openReservasExportModal()">Exportar Reservas a CSV</a></li>
+      <li><a href="#" onclick="openGastosExportModal()">Exportar Gastos a CSV</a></li>
+      <li class="separator"></li>
+      <li><a href="#" onclick="handleBackup()">Realizar Back-up</a></li>
+    </ul>
+  </div>
+  <div class="menu-item">
+    <span>Editar</span>
+    <ul class="dropdown-content">
+      <li><a href="#" onclick="document.getElementById('searchInput').focus()">Buscar Huésped</a></li>
+    </ul>
+  </div>
+  <div class="menu-item">
+    <span>Herramientas</span>
+    <ul class="dropdown-content">
+      <li><a href="#" onclick="openExpensesABM()">Gestión de Gastos</a></li>
+      <li><a href="#" onclick="openExpensesVisual()">Visualizar Gastos</a></li>
+      <li class="separator"></li>
+      <li><a href="#" onclick="sendWhatsAppSummary()">Enviar Resumen WhatsApp</a></li>
+      <li><a href="#" onclick="sendGuestFormAuto()">Enviar Form. Huésped (Auto)</a></li>
+      <li><a href="#" onclick="sendGuestFormManual()">Enviar Form. Huésped (Manual)</a></li>
+    </ul>
+  </div>
+  <div class="menu-item">
+    <span>Ayuda</span>
+    <ul class="dropdown-content">
+      <li><a href="#" onclick="openAboutModal()">Acerca de...</a></li>
+    </ul>
+  </div>
+</nav>
+
 <header class="header">
   <button class="property-btn active" id="btnBeltran4" onclick="switchCalendar('beltran4')">Beltrán 4º</button>
   <button class="property-btn" id="btnBeltran8" onclick="switchCalendar('beltran8')">Beltrán 8º</button>
@@ -305,9 +342,22 @@ footer{display:flex; justify-content:flex-start; flex-wrap: wrap; gap: 10px; pad
   </div>
 </div>
 
+<div id="aboutModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2>Acerca de la Aplicación</h2>
+        <div id="logoContainer">
+            </div>
+        <p>Sistema de Gestión de Reservas</p>
+        <p id="versionInfo">Versión 0.954 Beta</p>
+        <div class="modal-actions">
+            <button type="button" class="action-btn" onclick="closeAboutModal()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <script>
 /* ======  JS ====== */
-// --- CONFIGURACIÓN ---
+// --- CONFIGURACIÓN Y AUTENTICACIÓN ---
 const CLIENT_ID = '110876200467-qdh6su18s906eb6tmvgkp50hkcl0d03q.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyBO1S93xy3zDupP-tw1K9dCXhnq6_sQ5MU';
 const RESERVAS_FILE_ID = '1sJoANbvCHafpR5VRVmIC1kUCZfWpQcrP';
@@ -315,25 +365,26 @@ const CLIENTS_FILE_ID = '1QlDIDNyRT8rIIiY5d8pmGvf4C3QVmiZ5';
 const GASTOS_FILE_ID = '1mRMjwPbH81nj6ngtzK7h35Rv8HCzF5K0';
 const FERIADOS_FILE_ID = '10lfxphwKhZcjBpWSBQFVQuw9be7boMlr';
 const CLIENT_PHOTOS_FOLDER_ID = '1q5YV9LRjRgfYTL47T5TWeFdM2eiKET-5';
+// *** IMPORTANTE: Reemplazar 'AQUI_VA_EL_ID_DEL_LOGO' con el ID del archivo del logo de Google Drive ***
+const LOGO_FILE_ID = 'AQUI_VA_EL_ID_DEL_LOGO'; 
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 
 let gapiInited = false, gisInited = false, tokenClient;
 const authBtn = document.getElementById('authBtn'), signoutBtn = document.getElementById('signoutBtn');
 
-// --- LÓGICA DE LA APLICACIÓN ---
+// --- LÓGICA DE LA APLICACIÓN (ESTADO)---
 const props = ['beltran4', 'beltran8', 'directorio8'];
 const propNames = { beltran4: 'Beltrán 4º', beltran8: 'Beltrán 8º', directorio8: 'Directorio 8º' };
 const expenseTypes = ['Flow', 'Seguro Depto', 'Seguro tipo Art', 'Electricidad', 'Expensas', 'Servicio Limpieza', 'Gastos Limpieza', 'Gastos Otros', 'Comisiones'];
 const commissionRates = { 'AirBnB': 0.03, 'Booking': 0.15, 'Alquiler argentino': 0.15, 'Mercado Libre': 0, 'Para Irnos': 0, 'x Fuera': 0, 'Otra': 0 };
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-// --- MODIFICADO: El estado arranca en blanco y gestiona el token ---
 if (typeof window.appState === 'undefined') {
     window.appState = {
         reservas: [],
         clientes: [],
         gastos: [],
-        authToken: null, // Guardará el token de autenticación
+        authToken: null,
         feriadosMap: new Map(),
         highlightedIds: [],
         y: new Date().getFullYear(),
@@ -452,8 +503,10 @@ function refreshList() {
     list.appendChild(tomorrowSection);
 }
 
-function calculateDueAmount() { const total = parseFloat(document.getElementById('totalAmount').value) || 0; const paid = parseFloat(document.getElementById('paidAmount').value) || 0; document.getElementById('dueAmount').value = (total - paid).toFixed(2); }
+function formatNumber(num) { return Math.round(num).toLocaleString('es-AR'); }
 
+// --- LÓGICA DE GESTIÓN DE EVENTOS Y MODALES ---
+function calculateDueAmount() { const total = parseFloat(document.getElementById('totalAmount').value) || 0; const paid = parseFloat(document.getElementById('paidAmount').value) || 0; document.getElementById('dueAmount').value = (total - paid).toFixed(2); }
 function openModal(pref) {
     document.getElementById('modalOverlay').classList.remove('hidden');
     document.getElementById('reservationForm').reset();
@@ -477,9 +530,7 @@ function openModal(pref) {
     clearPhotoPreview();
     document.getElementById('photoPreviewContainer').dataset.deletePhoto = 'false';
 }
-
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
-
 function openEdit(id) {
     const r = appState.reservas.find(x => x.id === id);
     if (!r) return;
@@ -522,12 +573,11 @@ function openEdit(id) {
         clearPhotoPreview();
     }
 }
-
-function formatNumber(num) { return Math.round(num).toLocaleString('es-AR'); }
 function handleSearch() { const query = document.getElementById('searchInput').value.toLowerCase(); if (!query) { clearSearch(); return; } appState.highlightedIds = appState.reservas .filter(r => r.guestName.toLowerCase().includes(query)) .map(r => r.id); if(appState.highlightedIds.length === 0) { alert('No se encontraron reservas para ese huésped.'); } else { const firstReservation = appState.reservas.find(r => r.id === appState.highlightedIds[0]); if (firstReservation) { const checkInDate = new Date(firstReservation.checkIn + 'T00:00:00'); appState.y = checkInDate.getFullYear(); appState.m = checkInDate.getMonth(); } } renderAll(); }
 function clearSearch() { document.getElementById('searchInput').value = ''; appState.highlightedIds = []; renderAll(); }
-function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(appState.clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
 
+// --- LÓGICA MÓDULO DE CLIENTES ---
+function populateClientsDatalist() { const datalist = document.getElementById('clientsDatalist'); datalist.innerHTML = ''; const uniqueNames = [...new Set(appState.clientes.map(c => c.name))]; uniqueNames.forEach(name => { const option = document.createElement('option'); option.value = name; datalist.appendChild(option); }); }
 function handleClientAutocomplete() {
     const name = document.getElementById('guestName').value;
     const client = appState.clientes.find(c => c.name.toLowerCase() === name.toLowerCase());
@@ -546,7 +596,6 @@ function handleClientAutocomplete() {
         clearPhotoPreview();
     }
 }
-
 function showPhotoPreview(photoId) {
     const container = document.getElementById('photoPreviewContainer');
     const deleteBtn = document.getElementById('deletePhotoBtn');
@@ -564,13 +613,11 @@ function showPhotoPreview(photoId) {
     container.classList.remove('hidden');
     deleteBtn.classList.remove('hidden');
 }
-
 function clearPhotoPreview() {
     document.getElementById('photoPreviewContainer').classList.add('hidden');
     document.getElementById('deletePhotoBtn').classList.add('hidden');
     document.getElementById('guestPhoto').value = '';
 }
-
 function handleDeletePhoto() {
     if (!window.confirm('¿Está seguro? Se quitará la foto de este cliente al guardar. La imagen se borrará de Google Drive.')) {
         return;
@@ -579,76 +626,7 @@ function handleDeletePhoto() {
     clearPhotoPreview();
 }
 
-async function uploadPhoto(file) {
-    if (!appState.authToken) {
-        throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
-    }
-    if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
-        throw new Error("ID de la carpeta de fotos no configurado. Contacte al desarrollador.");
-    }
-
-    try {
-        const accessToken = appState.authToken.access_token;
-        const metadata = {
-            'name': `${Date.now()}_${file.name}`,
-            'parents': [CLIENT_PHOTOS_FOLDER_ID]
-        };
-        const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json; charset=UTF-8',
-            },
-            body: JSON.stringify(metadata)
-        });
-
-        if (!initResponse.ok) throw new Error('No se pudo iniciar la sesión de subida a Drive.');
-        
-        const locationUrl = initResponse.headers.get('Location');
-        if (!locationUrl) throw new Error('No se recibió la URL de subida de Drive.');
-
-        const uploadResponse = await fetch(locationUrl, {
-            method: 'PUT',
-            headers: { 'Content-Range': `bytes 0-${file.size - 1}/${file.size}` },
-            body: file
-        });
-
-        if (!uploadResponse.ok) {
-            const errorBody = await uploadResponse.json();
-            throw new Error(`Error al subir el contenido del archivo: ${errorBody.error.message}`);
-        }
-
-        const result = await uploadResponse.json();
-        const fileId = result.id;
-
-        await gapi.client.drive.permissions.create({
-            fileId: fileId,
-            resource: { 'role': 'reader', 'type': 'anyone' }
-        });
-
-        console.log('Subida completada. ID del archivo:', fileId);
-        return fileId;
-
-    } catch (error) {
-        console.error('Error durante el proceso de subida a Drive:', error);
-        throw new Error(`Fallo al subir la foto a Drive: ${error.message}`);
-    }
-}
-
-async function deletePhotoFromDrive(fileId) {
-    if (!fileId) return;
-    console.log(`Intentando eliminar el archivo de Drive con ID: ${fileId}`);
-    try {
-        await gapi.client.drive.files.delete({
-            fileId: fileId
-        });
-        console.log(`Archivo ${fileId} eliminado exitosamente de Google Drive.`);
-    } catch (error) {
-        console.error(`No se pudo eliminar el archivo ${fileId} de Drive. Puede que ya no exista o haya un problema de permisos.`, error);
-    }
-}
-
-
+// --- LÓGICA DE NEGOCIO ---
 async function handleSave() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
@@ -770,7 +748,6 @@ async function handleSave() {
         populateClientsDatalist();
     }
 }
-
 async function handleDelete() {
     const id = document.getElementById('reservationId').value;
     if (!id || !window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
@@ -816,196 +793,6 @@ async function handleDelete() {
         closeModal();
     }
 }
-
-async function save() {
-    localStorage.setItem('reservas', JSON.stringify(appState.reservas));
-    localStorage.setItem('clientes', JSON.stringify(appState.clientes));
-    localStorage.setItem('gastos', JSON.stringify(appState.gastos));
-    await Promise.all([
-        saveData(RESERVAS_FILE_ID, appState.reservas),
-        saveData(CLIENTS_FILE_ID, appState.clientes),
-        saveData(GASTOS_FILE_ID, appState.gastos)
-    ]);
-}
-
-// --- Lógica de Módulo de Gastos ---
-function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[appState.m]} ${appState.y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
-function closeExpensesABM() { document.getElementById('expensesAbmModal').classList.add('hidden'); }
-function populateExpensesFormDropdowns() { const deptoSelect = document.getElementById('expDepto'); deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join(''); const typeSelect = document.getElementById('expType'); typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join(''); }
-function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; appState.gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td>${g.descripcion || ''}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
-function resetExpensesForm() {
-    // Limpieza explícita de campos para mayor robustez
-    document.getElementById('expenseId').value = '';
-    document.getElementById('expAmount').value = '';
-    document.getElementById('expDescription').value = '';
-    document.getElementById('expDepto').selectedIndex = 0;
-    document.getElementById('expType').selectedIndex = 0;
-    // Establece el período actual
-    const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`;
-    document.getElementById('expPeriodo').value = periodo;
-}
-async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value), descripcion: document.getElementById('expDescription').value.trim() }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos (Monto debe ser mayor a cero).'); return; } const index = appState.gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { appState.gastos[index] = gastoData; } else { appState.gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); calculateFinancialSummary(); resetExpensesForm(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
-function handleEditGasto(id) { const gasto = appState.gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; document.getElementById('expDescription').value = gasto.descripcion || ''; }
-async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; appState.gastos = appState.gastos.filter(g => g.id !== id); try { await save(); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
-function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
-function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
-
-// --- Lógica de Exportación CSV ---
-function downloadCsv(filename, csvContent) {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-}
-
-function openReservasExportModal() {
-    const periodoSelect = document.getElementById('exportResPeriodo');
-    const deptoSelect = document.getElementById('exportResDepto');
-    
-    // Populate periods
-    const periodos = [...new Set(appState.reservas.map(r => r.checkIn.substring(0, 7).replace('-', '')))].sort((a, b) => b.localeCompare(a));
-    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
-    periodos.forEach(p => {
-        const year = p.substring(0, 4);
-        const month = parseInt(p.substring(4, 6), 10) - 1;
-        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
-    });
-
-    // Populate departments
-    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
-    props.forEach(p => {
-        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
-    });
-
-    document.getElementById('reservasExportModal').classList.remove('hidden');
-}
-
-function closeReservasExportModal() {
-    document.getElementById('reservasExportModal').classList.add('hidden');
-}
-
-function handleExportReservas() {
-    const selectedPeriodo = document.getElementById('exportResPeriodo').value;
-    const selectedDepto = document.getElementById('exportResDepto').value;
-
-    let dataToExport = appState.reservas;
-
-    if (selectedPeriodo !== 'todos') {
-        dataToExport = dataToExport.filter(r => r.checkIn.substring(0, 7).replace('-', '') === selectedPeriodo);
-    }
-    if (selectedDepto !== 'todos') {
-        dataToExport = dataToExport.filter(r => r.property === selectedDepto);
-    }
-
-    if (!dataToExport.length) {
-        alert('No hay datos para exportar con los filtros seleccionados.');
-        return;
-    }
-
-    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
-    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
-    const csvRows = [csvHeader];
-    
-    dataToExport.forEach(r => {
-        const checkInDate = new Date(r.checkIn + 'T00:00:00');
-        const year = checkInDate.getFullYear();
-        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
-        const periodo = `${year}${month}`;
-        let totalArs = r.total;
-        let paidArs = r.paid;
-        let dueArs = r.due;
-        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
-        const commissionRate = commissionRates[r.platform] || 0;
-        const commission = totalArs * commissionRate;
-        const totalNet = totalArs - commission;
-        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
-        csvRows.push(row);
-    });
-    
-    downloadCsv('reservas_export.csv', csvRows.join('\n'));
-    closeReservasExportModal();
-}
-
-function openGastosExportModal() {
-    const periodoSelect = document.getElementById('exportGasPeriodo');
-    const deptoSelect = document.getElementById('exportGasDepto');
-    const tipoSelect = document.getElementById('exportGasTipo');
-
-    // Populate periods
-    const periodos = [...new Set(appState.gastos.map(g => g.periodo))].sort((a, b) => b.localeCompare(a));
-    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
-    periodos.forEach(p => {
-        const year = p.substring(0, 4);
-        const month = parseInt(p.substring(4, 6), 10) - 1;
-        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
-    });
-
-    // Populate departments
-    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
-    props.forEach(p => {
-        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
-    });
-
-    // Populate expense types
-    tipoSelect.innerHTML = '<option value="todos">Todos los Tipos</option>';
-    expenseTypes.forEach(t => {
-        tipoSelect.innerHTML += `<option value="${t}">${t}</option>`;
-    });
-
-    document.getElementById('gastosExportModal').classList.remove('hidden');
-}
-
-function closeGastosExportModal() {
-    document.getElementById('gastosExportModal').classList.add('hidden');
-}
-
-function handleExportGastos() {
-    const selectedPeriodo = document.getElementById('exportGasPeriodo').value;
-    const selectedDepto = document.getElementById('exportGasDepto').value;
-    const selectedTipo = document.getElementById('exportGasTipo').value;
-
-    let dataToExport = appState.gastos;
-
-    if (selectedPeriodo !== 'todos') {
-        dataToExport = dataToExport.filter(g => g.periodo === selectedPeriodo);
-    }
-    if (selectedDepto !== 'todos') {
-        dataToExport = dataToExport.filter(g => g.departamento === selectedDepto);
-    }
-    if (selectedTipo !== 'todos') {
-        dataToExport = dataToExport.filter(g => g.tipoGasto === selectedTipo);
-    }
-
-    if (!dataToExport.length) {
-        alert('No hay gastos para exportar con los filtros seleccionados.');
-        return;
-    }
-
-    const csvHeader = 'Período,Departamento,Tipo de Gasto,Monto,Descripción';
-    const csvRows = [csvHeader];
-
-    dataToExport.forEach(g => {
-        const row = [
-            g.periodo,
-            propNames[g.departamento] || g.departamento,
-            g.tipoGasto,
-            g.monto,
-            `"${(g.descripcion || '').replace(/"/g, '""')}"`
-        ].join(',');
-        csvRows.push(row);
-    });
-
-    downloadCsv('gastos_export.csv', csvRows.join('\n'));
-    closeGastosExportModal();
-}
-
-
 function calculateFinancialSummary(selectedPropOverride = null) {
     if (selectedPropOverride) {
         appState.currentSummaryProp = selectedPropOverride;
@@ -1071,6 +858,378 @@ function calculateFinancialSummary(selectedPropOverride = null) {
     }
 }
 
+// --- LÓGICA DE GESTIÓN DE DATOS ---
+async function save() {
+    localStorage.setItem('reservas', JSON.stringify(appState.reservas));
+    localStorage.setItem('clientes', JSON.stringify(appState.clientes));
+    localStorage.setItem('gastos', JSON.stringify(appState.gastos));
+    await Promise.all([
+        saveData(RESERVAS_FILE_ID, appState.reservas),
+        saveData(CLIENTS_FILE_ID, appState.clientes),
+        saveData(GASTOS_FILE_ID, appState.gastos)
+    ]);
+}
+async function uploadPhoto(file) {
+    if (!appState.authToken) {
+        throw new Error("No autenticado. Inicie sesión con Google para poder subir fotos.");
+    }
+    if (!CLIENT_PHOTOS_FOLDER_ID || CLIENT_PHOTOS_FOLDER_ID === 'TU_ID_DE_CARPETA_AQUÍ') {
+        throw new Error("ID de la carpeta de fotos no configurado. Contacte al desarrollador.");
+    }
+
+    try {
+        const accessToken = appState.authToken.access_token;
+        const metadata = {
+            'name': `${Date.now()}_${file.name}`,
+            'parents': [CLIENT_PHOTOS_FOLDER_ID]
+        };
+        const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: JSON.stringify(metadata)
+        });
+
+        if (!initResponse.ok) throw new Error('No se pudo iniciar la sesión de subida a Drive.');
+        
+        const locationUrl = initResponse.headers.get('Location');
+        if (!locationUrl) throw new Error('No se recibió la URL de subida de Drive.');
+
+        const uploadResponse = await fetch(locationUrl, {
+            method: 'PUT',
+            headers: { 'Content-Range': `bytes 0-${file.size - 1}/${file.size}` },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            const errorBody = await uploadResponse.json();
+            throw new Error(`Error al subir el contenido del archivo: ${errorBody.error.message}`);
+        }
+
+        const result = await uploadResponse.json();
+        const fileId = result.id;
+
+        await gapi.client.drive.permissions.create({
+            fileId: fileId,
+            resource: { 'role': 'reader', 'type': 'anyone' }
+        });
+
+        console.log('Subida completada. ID del archivo:', fileId);
+        return fileId;
+
+    } catch (error) {
+        console.error('Error durante el proceso de subida a Drive:', error);
+        throw new Error(`Fallo al subir la foto a Drive: ${error.message}`);
+    }
+}
+async function deletePhotoFromDrive(fileId) {
+    if (!fileId) return;
+    console.log(`Intentando eliminar el archivo de Drive con ID: ${fileId}`);
+    try {
+        await gapi.client.drive.files.delete({
+            fileId: fileId
+        });
+        console.log(`Archivo ${fileId} eliminado exitosamente de Google Drive.`);
+    } catch (error) {
+        console.error(`No se pudo eliminar el archivo ${fileId} de Drive. Puede que ya no exista o haya un problema de permisos.`, error);
+    }
+}
+async function loadData(fileId) {
+    try {
+        const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+        return response.body;
+    } catch (err) {
+        console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
+        if (authExpired(err)) {
+            updateSigninStatus(false);
+            alert('La sesión con Google expiró. Por favor, iniciá sesión nuevamente.');
+        }
+        throw new Error(`No se pudo cargar el archivo ${fileId}.`);
+    }
+}
+async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { console.warn("No se pudieron cargar las reservas desde Google Drive." ); } }
+async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { console.warn("No se pudieron cargar los clientes desde Google Drive." ); } finally { populateClientsDatalist(); } }
+async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { console.warn("No se pudieron cargar los gastos desde Google Drive." ); } finally { calculateFinancialSummary(); } }
+async function loadFeriadosData() {
+    try {
+        const feriadosList = JSON.parse(await loadData(FERIADOS_FILE_ID));
+        appState.feriadosMap.clear();
+        if (Array.isArray(feriadosList)) {
+            feriadosList.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                            if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                            appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+        localStorage.setItem('feriados', JSON.stringify(feriadosList));
+    } catch (err) {
+        console.warn("No se pudieron cargar los feriados desde Google Drive.", err);
+        const localFeriados = JSON.parse(localStorage.getItem('feriados'));
+        if(Array.isArray(localFeriados)) {
+             localFeriados.forEach(f => {
+                if (f.Fecha) {
+                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
+                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
+                }
+                if (f.Dia_de_traslado) {
+                    const movedDates = f.Dia_de_traslado.split(',');
+                    movedDates.forEach(movedDate => {
+                        if (movedDate) {
+                           if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
+                           appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
+                        }
+                    });
+                }
+            });
+        }
+    }
+}
+async function saveData(fileId, data) { 
+    if (!appState.authToken) { 
+        throw new Error("No autenticado. Inicie sesión con Google para guardar."); 
+    } 
+    const content = JSON.stringify(data, null, 2); 
+    try { 
+        await gapi.client.request({ 
+            path: '/upload/drive/v3/files/' + fileId, 
+            method: 'PATCH', 
+            params: { uploadType: 'media' }, 
+            body: content, 
+        }); 
+    } catch (error) { 
+        console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); 
+        if (authExpired(error)) { 
+            updateSigninStatus(false); 
+            alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); 
+        }
+        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); 
+    } 
+}
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function downloadFile(fileId, fileName) {
+    console.log(`Iniciando descarga de ${fileName}...`);
+    const fileContent = await loadData(fileId);
+    const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    console.log(`${fileName} descargado.`);
+}
+async function handleBackup() {
+    if (!appState.authToken) {
+        alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
+        return;
+    }
+
+    const backupBtn = document.getElementById('backupBtn');
+    backupBtn.disabled = true;
+    backupBtn.textContent = 'Respaldando...';
+
+    try {
+        const filesToBackup = [
+            { id: RESERVAS_FILE_ID, name: 'reservas.json' },
+            { id: CLIENTS_FILE_ID, name: 'clientes.json' },
+            { id: GASTOS_FILE_ID, name: 'gastos.json' }
+        ];
+
+        for (const file of filesToBackup) {
+            await downloadFile(file.id, file.name);
+            await sleep(1000);
+        }
+
+        alert('Back-up completado exitosamente.');
+
+    } catch (error) {
+        console.error('Error durante el proceso de back-up:', error);
+        alert(`Ocurrió un error al descargar los archivos: ${error.message}`);
+    } finally {
+        backupBtn.disabled = false;
+        backupBtn.textContent = 'Back-up';
+    }
+}
+
+
+// --- LÓGICA DE MÓDULO DE GASTOS ---
+function openExpensesABM() { const modal = document.getElementById('expensesAbmModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesModalTitle').textContent = `Gestión de Gastos - ${monthNames[appState.m]} ${appState.y}`; document.getElementById('expPeriodo').value = periodo; populateExpensesFormDropdowns(); renderExpensesList(periodo); modal.classList.remove('hidden'); }
+function closeExpensesABM() { document.getElementById('expensesAbmModal').classList.add('hidden'); }
+function populateExpensesFormDropdowns() { const deptoSelect = document.getElementById('expDepto'); deptoSelect.innerHTML = props.map(p => `<option value="${p}">${propNames[p]}</option>`).join(''); const typeSelect = document.getElementById('expType'); typeSelect.innerHTML = expenseTypes.map(t => `<option value="${t}">${t}</option>`).join(''); }
+function renderExpensesList(periodo) { const tbody = document.querySelector('#expensesTable tbody'); tbody.innerHTML = ''; appState.gastos.filter(g => g.periodo === periodo).forEach(g => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${propNames[g.departamento] || g.departamento}</td><td>${g.tipoGasto}</td><td>$${formatNumber(g.monto)}</td><td>${g.descripcion || ''}</td><td class="actions"><button onclick="handleEditGasto('${g.id}')">Editar</button><button onclick="handleDeleteGasto('${g.id}')">X</button></td>`; tbody.appendChild(tr); }); }
+function resetExpensesForm() {
+    document.getElementById('expenseId').value = '';
+    document.getElementById('expAmount').value = '';
+    document.getElementById('expDescription').value = '';
+    document.getElementById('expDepto').selectedIndex = 0;
+    document.getElementById('expType').selectedIndex = 0;
+    const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`;
+    document.getElementById('expPeriodo').value = periodo;
+}
+async function handleSaveGasto() { const gastoData = { id: document.getElementById('expenseId').value || `gasto-${Date.now()}`, periodo: document.getElementById('expPeriodo').value, departamento: document.getElementById('expDepto').value, tipoGasto: document.getElementById('expType').value, monto: parseFloat(document.getElementById('expAmount').value), descripcion: document.getElementById('expDescription').value.trim() }; if (!gastoData.departamento || !gastoData.tipoGasto || isNaN(gastoData.monto) || gastoData.monto <= 0) { alert('Por favor, complete todos los campos del gasto con valores válidos (Monto debe ser mayor a cero).'); return; } const index = appState.gastos.findIndex(g => g.id === gastoData.id); if (index > -1) { appState.gastos[index] = gastoData; } else { appState.gastos.push(gastoData); } try { await save(); renderExpensesList(gastoData.periodo); calculateFinancialSummary(); resetExpensesForm(); } catch (error) { alert(`FALLO AL GUARDAR GASTO: ${error.message}`); } }
+function handleEditGasto(id) { const gasto = appState.gastos.find(g => g.id === id); if (!gasto) return; document.getElementById('expenseId').value = gasto.id; document.getElementById('expPeriodo').value = gasto.periodo; document.getElementById('expDepto').value = gasto.departamento; document.getElementById('expType').value = gasto.tipoGasto; document.getElementById('expAmount').value = gasto.monto; document.getElementById('expDescription').value = gasto.descripcion || ''; }
+async function handleDeleteGasto(id) { if (!window.confirm('¿Está seguro de que desea eliminar este gasto?')) return; appState.gastos = appState.gastos.filter(g => g.id !== id); try { await save(); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; renderExpensesList(periodo); calculateFinancialSummary(); } catch (error) { alert(`FALLO AL ELIMINAR GASTO: ${error.message}`); } }
+function openExpensesVisual() { const modal = document.getElementById('expensesVisualModal'); const periodo = `${appState.y}${(appState.m + 1).toString().padStart(2, '0')}`; document.getElementById('expensesVisualModalTitle').textContent = `Resumen de Gastos - ${monthNames[appState.m]} ${appState.y}`; const summary = {}; expenseTypes.forEach(type => { summary[type] = {}; props.forEach(prop => summary[type][prop] = 0); }); appState.gastos.filter(g => g.periodo === periodo).forEach(g => { if (summary[g.tipoGasto]) { summary[g.tipoGasto][g.departamento] += g.monto; } }); const table = document.getElementById('expensesSummaryTable'); table.innerHTML = ''; let thead = '<thead><tr><th>Tipo de Gasto</th>'; props.forEach(p => thead += `<th>${propNames[p]}</th>`); thead += '<th>Total por Tipo</th></tr></thead>'; table.innerHTML += thead; let tbody = '<tbody>'; const totalsByType = {}; expenseTypes.forEach(type => { let rowTotal = 0; let rowHtml = `<tr><th>${type}</th>`; props.forEach(prop => { const amount = summary[type][prop] || 0; rowHtml += `<td>$${formatNumber(amount)}</td>`; rowTotal += amount; }); rowHtml += `<td>$${formatNumber(rowTotal)}</td></tr>`; tbody += rowHtml; totalsByType[type] = rowTotal; }); tbody += '</tbody>'; table.innerHTML += tbody; let tfoot = '<tfoot><tr class="total-row"><th>Total por Depto.</th>'; let grandTotal = 0; props.forEach(prop => { let colTotal = 0; expenseTypes.forEach(type => colTotal += summary[type][prop] || 0); tfoot += `<td>$${formatNumber(colTotal)}</td>`; grandTotal += colTotal; }); tfoot += `<td>$${formatNumber(grandTotal)}</td></tr></tfoot>`; table.innerHTML += tfoot; modal.classList.remove('hidden'); }
+function closeExpensesVisual() { document.getElementById('expensesVisualModal').classList.add('hidden'); }
+
+// --- MÓDULO DE COMUNICACIONES Y EXPORTACIÓN ---
+function downloadCsv(filename, csvContent) {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+function openReservasExportModal() {
+    const periodoSelect = document.getElementById('exportResPeriodo');
+    const deptoSelect = document.getElementById('exportResDepto');
+    
+    const periodos = [...new Set(appState.reservas.map(r => r.checkIn.substring(0, 7).replace('-', '')))].sort((a, b) => b.localeCompare(a));
+    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
+    periodos.forEach(p => {
+        const year = p.substring(0, 4);
+        const month = parseInt(p.substring(4, 6), 10) - 1;
+        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
+    });
+
+    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
+    props.forEach(p => {
+        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
+    });
+
+    document.getElementById('reservasExportModal').classList.remove('hidden');
+}
+function closeReservasExportModal() {
+    document.getElementById('reservasExportModal').classList.add('hidden');
+}
+function handleExportReservas() {
+    const selectedPeriodo = document.getElementById('exportResPeriodo').value;
+    const selectedDepto = document.getElementById('exportResDepto').value;
+
+    let dataToExport = appState.reservas;
+
+    if (selectedPeriodo !== 'todos') {
+        dataToExport = dataToExport.filter(r => r.checkIn.substring(0, 7).replace('-', '') === selectedPeriodo);
+    }
+    if (selectedDepto !== 'todos') {
+        dataToExport = dataToExport.filter(r => r.property === selectedDepto);
+    }
+
+    if (!dataToExport.length) {
+        alert('No hay datos para exportar con los filtros seleccionados.');
+        return;
+    }
+
+    const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+    const csvHeader = 'ID,Propiedad,Periodo,Nombre,DNI,Email,Tel1,Tel2,Pers,Ingreso,Egreso,Plataforma,Moneda,Total(ARS),Pago(ARS),IngresoPend(ARS),Total Neto(ARS),Comisiones(ARS),Estado,Notas';
+    const csvRows = [csvHeader];
+    
+    dataToExport.forEach(r => {
+        const checkInDate = new Date(r.checkIn + 'T00:00:00');
+        const year = checkInDate.getFullYear();
+        const month = (checkInDate.getMonth() + 1).toString().padStart(2, '0');
+        const periodo = `${year}${month}`;
+        let totalArs = r.total;
+        let paidArs = r.paid;
+        let dueArs = r.due;
+        if (r.currency === 'Dolares') { totalArs *= exchangeRate; paidArs *= exchangeRate; dueArs *= exchangeRate; }
+        const commissionRate = commissionRates[r.platform] || 0;
+        const commission = totalArs * commissionRate;
+        const totalNet = totalArs - commission;
+        const row = [ r.id, propNames[r.property], periodo, r.guestName, r.guestDni || '', r.guestEmail || '', r.guestPhone1 || '', r.guestPhone2 || '', r.numGuests, r.checkIn, r.checkOut, r.platform || 'Otra', r.currency || 'Pesos Argentinos', totalArs.toFixed(2), paidArs.toFixed(2), dueArs.toFixed(2), totalNet.toFixed(2), commission.toFixed(2), r.status, `"${(r.notes || '').replace(/"/g, '""')}"` ].join(',');
+        csvRows.push(row);
+    });
+    
+    downloadCsv('reservas_export.csv', csvRows.join('\n'));
+    closeReservasExportModal();
+}
+function openGastosExportModal() {
+    const periodoSelect = document.getElementById('exportGasPeriodo');
+    const deptoSelect = document.getElementById('exportGasDepto');
+    const tipoSelect = document.getElementById('exportGasTipo');
+
+    const periodos = [...new Set(appState.gastos.map(g => g.periodo))].sort((a, b) => b.localeCompare(a));
+    periodoSelect.innerHTML = '<option value="todos">Todos los Períodos</option>';
+    periodos.forEach(p => {
+        const year = p.substring(0, 4);
+        const month = parseInt(p.substring(4, 6), 10) - 1;
+        periodoSelect.innerHTML += `<option value="${p}">${monthNames[month]} ${year}</option>`;
+    });
+
+    deptoSelect.innerHTML = '<option value="todos">Todos los Departamentos</option>';
+    props.forEach(p => {
+        deptoSelect.innerHTML += `<option value="${p}">${propNames[p]}</option>`;
+    });
+
+    tipoSelect.innerHTML = '<option value="todos">Todos los Tipos</option>';
+    expenseTypes.forEach(t => {
+        tipoSelect.innerHTML += `<option value="${t}">${t}</option>`;
+    });
+
+    document.getElementById('gastosExportModal').classList.remove('hidden');
+}
+function closeGastosExportModal() {
+    document.getElementById('gastosExportModal').classList.add('hidden');
+}
+function handleExportGastos() {
+    const selectedPeriodo = document.getElementById('exportGasPeriodo').value;
+    const selectedDepto = document.getElementById('exportGasDepto').value;
+    const selectedTipo = document.getElementById('exportGasTipo').value;
+
+    let dataToExport = appState.gastos;
+
+    if (selectedPeriodo !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.periodo === selectedPeriodo);
+    }
+    if (selectedDepto !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.departamento === selectedDepto);
+    }
+    if (selectedTipo !== 'todos') {
+        dataToExport = dataToExport.filter(g => g.tipoGasto === selectedTipo);
+    }
+
+    if (!dataToExport.length) {
+        alert('No hay gastos para exportar con los filtros seleccionados.');
+        return;
+    }
+
+    const csvHeader = 'Período,Departamento,Tipo de Gasto,Monto,Descripción';
+    const csvRows = [csvHeader];
+
+    dataToExport.forEach(g => {
+        const row = [
+            g.periodo,
+            propNames[g.departamento] || g.departamento,
+            g.tipoGasto,
+            g.monto,
+            `"${(g.descripcion || '').replace(/"/g, '""')}"`
+        ].join(',');
+        csvRows.push(row);
+    });
+
+    downloadCsv('gastos_export.csv', csvRows.join('\n'));
+    closeGastosExportModal();
+}
 function sendWhatsAppSummary() {
     const phoneNumbers = [ '5491160018388', '5491161911833' ];
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1095,7 +1254,6 @@ function sendWhatsAppSummary() {
     const encodedMessage = encodeURIComponent(message);
     phoneNumbers.forEach(number => { if (number) { const whatsappUrl = `https://wa.me/${number}?text=${encodedMessage}`; window.open(whatsappUrl, '_blank'); } });
 }
-
 function sendGuestFormAuto() {
     const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
     if (!phone || phone.trim() === '') return;
@@ -1108,7 +1266,6 @@ function sendGuestFormAuto() {
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
 }
-
 function sendGuestFormManual() {
     const phone = prompt("Número de WhatsApp del Huésped (ej: 54911...):");
     if (!phone || phone.trim() === '') return;
@@ -1119,8 +1276,6 @@ function sendGuestFormManual() {
     const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
 }
-
-
 function generateGuestFormPDF() {
     const { jsPDF } = window.jspdf;
     const pdfGenReservationId = document.getElementById('reservationId').value;
@@ -1179,20 +1334,40 @@ function generateGuestFormPDF() {
         pdfNewDoc.save(`Formulario-Ingreso-${pdfGenCurrentReservation.guestName.replace(/ /g, '_')}.pdf`);
     } catch (error) { console.error("Error al generar el PDF:", error); alert(`Ocurrió un error al generar el PDF: ${error.message}`); }
 }
+// --- NUEVAS FUNCIONES PARA MODAL "ACERCA DE" ---
+function handleLogoError() {
+    const logoContainer = document.getElementById('logoContainer');
+    logoContainer.innerHTML = '<h3>J&A Living Sites</h3>';
+}
+function openAboutModal() {
+    const modal = document.getElementById('aboutModal');
+    const logoContainer = document.getElementById('logoContainer');
+    logoContainer.innerHTML = ''; // Limpiar contenido previo
+    if (LOGO_FILE_ID && LOGO_FILE_ID !== 'AQUI_VA_EL_ID_DEL_LOGO') {
+        const img = document.createElement('img');
+        img.src = `https://drive.google.com/uc?id=${LOGO_FILE_ID}`;
+        img.alt = 'Logo J&A Living Sites';
+        img.onerror = handleLogoError;
+        logoContainer.appendChild(img);
+    } else {
+        handleLogoError(); // Mostrar texto si no hay ID
+    }
+    modal.classList.remove('hidden');
+}
+function closeAboutModal() {
+    document.getElementById('aboutModal').classList.add('hidden');
+}
 
-
-// --- Lógica de Autenticación de Google (CORREGIDA) ---
+// --- Lógica de Autenticación de Google ---
 function setupAuth() {
     if (gapiInited && gisInited) {
         authBtn.onclick = () => tokenClient.requestAccessToken({ prompt: 'consent' });
         signoutBtn.onclick = handleSignoutClick;
     }
 }
-
 function gapiLoaded() { 
     gapi.load('client', initializeGapiClient); 
 }
-
 async function initializeGapiClient() { 
     await gapi.client.init({ 
         apiKey: API_KEY, 
@@ -1201,14 +1376,12 @@ async function initializeGapiClient() {
     gapiInited = true; 
     setupAuth();
 }
-
 function gisLoaded() {
     const processTokenResponse = (tokenResponse) => {
         if (tokenResponse && tokenResponse.access_token) {
             gapi.client.setToken(tokenResponse);
             updateSigninStatus(true);
             
-            // --- MODIFICADO: Se gestiona el token en el estado de la app ---
             appState.authToken = tokenResponse;
 
             Promise.all([
@@ -1234,8 +1407,6 @@ function gisLoaded() {
     gisInited = true;
     setupAuth();
 }
-
-
 function handleSignoutClick() { 
     const token = appState.authToken;
     if (token) { 
@@ -1245,7 +1416,6 @@ function handleSignoutClick() {
         });
     } 
 }
-
 function updateSigninStatus(isSignedIn) {
     if (isSignedIn) {
         authBtn.classList.add('hidden');
@@ -1254,7 +1424,6 @@ function updateSigninStatus(isSignedIn) {
         authBtn.classList.remove('hidden');
         signoutBtn.classList.add('hidden');
         
-        // --- MODIFICADO: Limpieza completa al cerrar sesión ---
         appState.authToken = null;
         appState.reservas = [];
         appState.clientes = [];
@@ -1269,143 +1438,6 @@ function updateSigninStatus(isSignedIn) {
     }
 }
 
-async function loadData(fileId) {
-    try {
-        const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-        return response.body;
-    } catch (err) {
-        console.error(`Error al cargar archivo ${fileId} de Drive: `, err);
-        if (authExpired(err)) {
-            updateSigninStatus(false);
-            alert('La sesión con Google expiró. Por favor, iniciá sesión nuevamente.');
-        }
-        throw new Error(`No se pudo cargar el archivo ${fileId}.`);
-    }
-}
-
-async function loadReservasData() { try { const data = JSON.parse(await loadData(RESERVAS_FILE_ID)); appState.reservas = Array.isArray(data) ? data.map(r => ({ ...r, platform: r.platform || 'Otra', currency: r.currency || 'Pesos Argentinos' })) : []; localStorage.setItem('reservas', JSON.stringify(appState.reservas)); } catch (err) { console.warn("No se pudieron cargar las reservas desde Google Drive." ); } }
-async function loadClientsData() { try { const data = JSON.parse(await loadData(CLIENTS_FILE_ID)); appState.clientes = Array.isArray(data) ? data : []; localStorage.setItem('clientes', JSON.stringify(appState.clientes)); } catch (err) { console.warn("No se pudieron cargar los clientes desde Google Drive." ); } finally { populateClientsDatalist(); } }
-async function loadGastosData() { try { const data = JSON.parse(await loadData(GASTOS_FILE_ID)); appState.gastos = Array.isArray(data) ? data : []; localStorage.setItem('gastos', JSON.stringify(appState.gastos)); } catch (err) { console.warn("No se pudieron cargar los gastos desde Google Drive." ); } finally { calculateFinancialSummary(); } }
-
-async function loadFeriadosData() {
-    try {
-        const feriadosList = JSON.parse(await loadData(FERIADOS_FILE_ID));
-        appState.feriadosMap.clear();
-        if (Array.isArray(feriadosList)) {
-            feriadosList.forEach(f => {
-                if (f.Fecha) {
-                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
-                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
-                }
-                if (f.Dia_de_traslado) {
-                    const movedDates = f.Dia_de_traslado.split(',');
-                    movedDates.forEach(movedDate => {
-                        if (movedDate) {
-                            if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
-                            appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
-                        }
-                    });
-                }
-            });
-        }
-        localStorage.setItem('feriados', JSON.stringify(feriadosList));
-    } catch (err) {
-        console.warn("No se pudieron cargar los feriados desde Google Drive.", err);
-        const localFeriados = JSON.parse(localStorage.getItem('feriados'));
-        if(Array.isArray(localFeriados)) {
-             localFeriados.forEach(f => {
-                if (f.Fecha) {
-                     if (!appState.feriadosMap.has(f.Fecha)) appState.feriadosMap.set(f.Fecha, []);
-                     appState.feriadosMap.get(f.Fecha).push({ type: 'original', desc: f.Descripcion });
-                }
-                if (f.Dia_de_traslado) {
-                    const movedDates = f.Dia_de_traslado.split(',');
-                    movedDates.forEach(movedDate => {
-                        if (movedDate) {
-                           if (!appState.feriadosMap.has(movedDate)) appState.feriadosMap.set(movedDate, []);
-                           appState.feriadosMap.get(movedDate).push({ type: 'trasladado', desc: `Trasladado: ${f.Descripcion}` });
-                        }
-                    });
-                }
-            });
-        }
-    }
-}
-
-async function saveData(fileId, data) { 
-    if (!appState.authToken) { 
-        throw new Error("No autenticado. Inicie sesión con Google para guardar."); 
-    } 
-    const content = JSON.stringify(data, null, 2); 
-    try { 
-        await gapi.client.request({ 
-            path: '/upload/drive/v3/files/' + fileId, 
-            method: 'PATCH', 
-            params: { uploadType: 'media' }, 
-            body: content, 
-        }); 
-    } catch (error) { 
-        console.error(`Error al guardar el archivo ${fileId} en Drive:`, error); 
-        if (authExpired(error)) { 
-            updateSigninStatus(false); 
-            alert('La sesión con Google expiró durante el guardado. Iniciá sesión y reintentá.'); 
-        }
-        throw new Error(`Fallo al guardar en la nube: ${error.result?.error?.message || error.message}`); 
-    } 
-}
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-async function downloadFile(fileId, fileName) {
-    console.log(`Iniciando descarga de ${fileName}...`);
-    const fileContent = await loadData(fileId);
-    const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    console.log(`${fileName} descargado.`);
-}
-
-async function handleBackup() {
-    if (!appState.authToken) {
-        alert("Por favor, inicie sesión con Google para poder descargar el back-up.");
-        return;
-    }
-
-    const backupBtn = document.getElementById('backupBtn');
-    backupBtn.disabled = true;
-    backupBtn.textContent = 'Respaldando...';
-
-    try {
-        const filesToBackup = [
-            { id: RESERVAS_FILE_ID, name: 'reservas.json' },
-            { id: CLIENTS_FILE_ID, name: 'clientes.json' },
-            { id: GASTOS_FILE_ID, name: 'gastos.json' }
-        ];
-
-        for (const file of filesToBackup) {
-            await downloadFile(file.id, file.name);
-            await sleep(1000);
-        }
-
-        alert('Back-up completado exitosamente.');
-
-    } catch (error) {
-        console.error('Error durante el proceso de back-up:', error);
-        alert(`Ocurrió un error al descargar los archivos: ${error.message}`);
-    } finally {
-        backupBtn.disabled = false;
-        backupBtn.textContent = 'Back-up';
-    }
-}
-
-
 // --- INICIALIZACIÓN ---
 function init() {
     window.switchCalendar = switchCalendar; window.openModal = openModal; window.closeModal = closeModal; window.handleSave = handleSave; window.handleDelete = handleDelete; window.changeMonth = changeMonth; window.calculateDueAmount = calculateDueAmount; window.handleClientAutocomplete = handleClientAutocomplete; window.handleSearch = handleSearch; window.clearSearch = clearSearch; window.calculateFinancialSummary = calculateFinancialSummary; window.openEdit = openEdit;
@@ -1416,15 +1448,16 @@ function init() {
     window.sendGuestFormAuto = sendGuestFormAuto;
     window.sendGuestFormManual = sendGuestFormManual;
     window.generateGuestFormPDF = generateGuestFormPDF;
-    // --- NUEVAS FUNCIONES DE EXPORTACIÓN ---
     window.openReservasExportModal = openReservasExportModal;
     window.closeReservasExportModal = closeReservasExportModal;
     window.handleExportReservas = handleExportReservas;
     window.openGastosExportModal = openGastosExportModal;
     window.closeGastosExportModal = closeGastosExportModal;
     window.handleExportGastos = handleExportGastos;
+    // --- NUEVAS FUNCIONES DE MENÚ ---
+    window.openAboutModal = openAboutModal;
+    window.closeAboutModal = closeAboutModal;
     
-    // La carga inicial desde LocalStorage de feriados puede permanecer como fallback
     const localFeriados = JSON.parse(localStorage.getItem('feriados'));
     if(Array.isArray(localFeriados)) {
         localFeriados.forEach(f => {
